@@ -1645,18 +1645,20 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		}
 	}
 
-	int32 CountTaxi = 0, CountBus = 0, CountDolmus = 0, CountVan = 0;
+	int32 CountTaxi = 0, CountBus = 0, CountDolmus = 0, CountVan = 0, CountScooter = 0, ChokepointCount = 0;
 	if (AIstanbulTrafficManager* TM = Cast<AIstanbulTrafficManager>(UGameplayStatics::GetActorOfClass(W, AIstanbulTrafficManager::StaticClass())))
 	{
+		ChokepointCount = TM->GetChokepoints().Num();
 		for (const ATrafficVehicle* V : TM->GetSpawnedVehicles())
 		{
 			if (!V) continue;
 			switch (V->GetVehicleType())
 			{
-			case EIstanbulVehicleType::YellowTaxi:  ++CountTaxi;   break;
-			case EIstanbulVehicleType::IETTBus:     ++CountBus;    break;
-			case EIstanbulVehicleType::Dolmus:      ++CountDolmus; break;
-			case EIstanbulVehicleType::DeliveryVan: ++CountVan;    break;
+			case EIstanbulVehicleType::YellowTaxi:     ++CountTaxi;    break;
+			case EIstanbulVehicleType::IETTBus:        ++CountBus;     break;
+			case EIstanbulVehicleType::Dolmus:         ++CountDolmus;  break;
+			case EIstanbulVehicleType::DeliveryVan:    ++CountVan;     break;
+			case EIstanbulVehicleType::ScooterCourier: ++CountScooter; break;
 			}
 		}
 	}
@@ -1664,10 +1666,10 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	const bool bNetworkValid = ValidateNetwork();
 
 	UE_LOG(LogIstanbulTaxi, Log,
-		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d) Summary: Roads=%d | Junctions=%d | Districts=%d | Buildings=%d | Slopes=%d (MinGrade=%.1f deg, MaxGrade=%.1f deg) | Vehicles=%d (YellowTaxi=%d, IETTBus=%d, Dolmus=%d, DeliveryVan=%d) | Props(Actors=%d, HISMInstances=%d, ProcMeshSections=%d, StreetLampPoints=%d) | ValidateNetwork=%s."),
+		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d) Summary: Roads=%d | Junctions=%d | Districts=%d | Buildings=%d | Slopes=%d (MinGrade=%.1f deg, MaxGrade=%.1f deg) | Chokepoints=%d | Vehicles=%d (YellowTaxi=%d, IETTBus=%d, Dolmus=%d, DeliveryVan=%d, Scooter=%d) | Props(Actors=%d, HISMInstances=%d, ProcMeshSections=%d, StreetLampPoints=%d) | ValidateNetwork=%s."),
 		Seed, RoadSegments.Num(), SolvedJunctionCount, Districts.Num(), BuildingSpecs.Num(), InclinedSegmentCount,
-		(InclinedSegmentCount > 0 ? MinSlopeDeg : 0.0f), MaxSlopeDeg,
-		TrafficCount, CountTaxi, CountBus, CountDolmus, CountVan,
+		(InclinedSegmentCount > 0 ? MinSlopeDeg : 0.0f), MaxSlopeDeg, ChokepointCount,
+		TrafficCount, CountTaxi, CountBus, CountDolmus, CountVan, CountScooter,
 		SpawnedActorCount, SpawnedHISMInstanceCount, SpawnedProcMeshSectionCount, StreetLampLightWorldPositions.Num(),
 		bNetworkValid ? TEXT("PASS") : TEXT("FAIL"));
 }

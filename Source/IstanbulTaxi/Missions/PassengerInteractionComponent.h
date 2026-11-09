@@ -76,6 +76,19 @@ public:
 	/** Called by ATaxiPawn when a collision or hard pothole jolt happens. */
 	void NotifyHardJoltOrCollision(float Severity01, bool bIsCollision);
 
+	/** Task 2.3 Gameplay Hooks connected to ATaxiPawn / AIstanbulTrafficManager delegates. */
+	UFUNCTION()
+	void NotifyChokepointEntered(FName ChokepointId, float FreeGapWidthM);
+
+	UFUNCTION()
+	void NotifyHornExchange(AActor* ResponderVehicle, bool bLongAggressiveHorn, FString ReactionSummary);
+
+	UFUNCTION()
+	void NotifyNearMiss(AActor* OtherVehicle, float ClearanceCm);
+
+	UFUNCTION()
+	void NotifyVehicleScrape(AActor* ScrapedActor, float ScrapeSpeedKmh);
+
 	// ---- Queries for HUD & Mission Settlement ----
 	UFUNCTION(BlueprintPure, Category = "Passenger") bool IsPassengerOnboard() const { return bPassengerOnboard; }
 	UFUNCTION(BlueprintPure, Category = "Passenger") EPassengerArchetypeType GetArchetype() const { return CurrentArchetype; }

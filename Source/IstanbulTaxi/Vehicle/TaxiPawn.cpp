@@ -8,7 +8,10 @@
 #include "Missions/PassengerInteractionComponent.h"
 #include "Environment/TimeOfDaySubsystem.h"
 #include "Audio/AudioAmbienceSubsystem.h"
+#include "Traffic/IstanbulTrafficManager.h"
+#include "Core/IstanbulMeshUtils.h"
 #include "Core/IstanbulTaxiGameplayTags.h"
+#include "ProceduralMeshComponent.h"
 #include "ChaosWheeledVehicleMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
@@ -76,6 +79,10 @@ ATaxiPawn::ATaxiPawn()
 	// --- Visible Placeholder Meshes (Engine BasicShapes) for immediate zero-asset playability ---
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+
+	TaxiBodyProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("TaxiBodyProcMesh"));
+	TaxiBodyProcMesh->SetupAttachment(GetMesh());
+	TaxiBodyProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	PlaceholderChassis = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderChassis"));
 	PlaceholderChassis->SetupAttachment(GetMesh());
@@ -232,6 +239,27 @@ void ATaxiPawn::BeginPlay()
 
 	if (bUsingPlaceholderDrive)
 	{
+		// Build the refined beveled YellowTaxi procedural mesh (Task 2.1: hood, raked windshield, cabin, trunk,
+		// bumpers, wheel arches, side mirrors, license plates) on TaxiBodyProcMesh!
+		if (TaxiBodyProcMesh)
+		{
+			FIstanbulMeshSectionData HighDetailSection;
+			FIstanbulMeshSectionData LodSection;
+			float LengthCm = 445.0f, WidthCm = 180.0f;
+			ATrafficVehicle::BuildIstanbulVehicleMeshSections(
+				EIstanbulVehicleType::YellowTaxi, 1453, HighDetailSection, LodSection, LengthCm, WidthCm);
+			HighDetailSection.CommitToComponent(TaxiBodyProcMesh, 0, false, FIstanbulMeshUtils::LoadVertexColorMaterialSafe());
+			TaxiBodyProcMesh->SetVisibility(true);
+		}
+		// Hide the old blocky static-mesh chassis cubes now that TaxiBodyProcMesh renders the beveled sedan body
+		if (PlaceholderChassis)     PlaceholderChassis->SetVisibility(false);
+		if (PlaceholderCabin)       PlaceholderCabin->SetVisibility(false);
+		if (PlaceholderWindshield)  PlaceholderWindshield->SetVisibility(false);
+		if (PlaceholderSideBand)    PlaceholderSideBand->SetVisibility(false);
+		if (PlaceholderFrontGrille) PlaceholderFrontGrille->SetVisibility(false);
+		for (UStaticMeshComponent* HL : PlaceholderHeadlights) if (HL) HL->SetVisibility(false);
+		for (UStaticMeshComponent* TL : PlaceholderTaillights) if (TL) TL->SetVisibility(false);
+
 		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 		{
 			auto TintComp = [this, BaseMat](UStaticMeshComponent* Comp, const FLinearColor& Color)
@@ -241,17 +269,16 @@ void ATaxiPawn::BeginPlay()
 				MID->SetVectorParameterValue(TEXT("Color"), Color);
 				Comp->SetMaterial(0, MID);
 			};
-			TintComp(PlaceholderChassis,     FLinearColor(0.96f, 0.70f, 0.02f)); // Iconic Istanbul Sarı Taksi yellow
-			TintComp(PlaceholderCabin,       FLinearColor(0.92f, 0.66f, 0.02f));
-			TintComp(PlaceholderWindshield,  FLinearColor(0.07f, 0.10f, 0.14f)); // Dark tinted greenhouse glass
-			TintComp(PlaceholderSideBand,    FLinearColor(0.05f, 0.05f, 0.06f)); // Black checkered taxi beltline
-			TintComp(PlaceholderFrontGrille, FLinearColor(0.06f, 0.06f, 0.07f)); // Radiator grille
-			TintComp(PlaceholderRoofSign,    FLinearColor(1.00f, 0.92f, 0.18f)); // Bright yellow TAKSİ roof sign
-			for (UStaticMeshComponent* HL : PlaceholderHeadlights) TintComp(HL, FLinearColor(1.00f, 0.96f, 0.78f));
-			for (UStaticMeshComponent* TL : PlaceholderTaillights) TintComp(TL, FLinearColor(0.92f, 0.08f, 0.06f));
-			for (UStaticMeshComponent* W  : PlaceholderWheels)     TintComp(W,  FLinearColor(0.05f, 0.05f, 0.06f));
-			for (UStaticMeshComponent* H  : PlaceholderHubcaps)    TintComp(H,  FLinearColor(0.72f, 0.75f, 0.78f));
+			TintComp(PlaceholderRoofSign, FLinearColor(1.00f, 0.92f, 0.18f)); // Bright yellow TAKSİ roof sign
+			for (UStaticMeshComponent* W  : PlaceholderWheels)  TintComp(W,  FLinearColor(0.05f, 0.05f, 0.06f));
+			for (UStaticMeshComponent* H  : PlaceholderHubcaps) TintComp(H,  FLinearColor(0.72f, 0.75f, 0.78f));
 		}
+	}
+
+	if (PassengerInteraction)
+	{
+		OnNearMiss.AddUniqueDynamic(PassengerInteraction, &UPassengerInteractionComponent::NotifyNearMiss);
+		OnScrape.AddUniqueDynamic(PassengerInteraction, &UPassengerInteractionComponent::NotifyVehicleScrape);
 	}
 
 	InteriorCameraBaseLocation = InteriorCamera->GetRelativeLocation();
@@ -310,6 +337,7 @@ void ATaxiPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	PlayerInputComponent->BindAction(TEXT("TriggerTestEzan"), IE_Pressed,  this, &ATaxiPawn::LegacyTriggerEzan);
 	PlayerInputComponent->BindAction(TEXT("AdvanceTimeHour"), IE_Pressed,  this, &ATaxiPawn::LegacyAdvanceTime);
 	PlayerInputComponent->BindAction(TEXT("Horn"),            IE_Pressed,  this, &ATaxiPawn::LegacyHornPressed);
+	PlayerInputComponent->BindAction(TEXT("Horn"),            IE_Released, this, &ATaxiPawn::LegacyHornReleased);
 	PlayerInputComponent->BindAction(TEXT("DialogueChoice1"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice1);
 	PlayerInputComponent->BindAction(TEXT("DialogueChoice2"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice2);
 	PlayerInputComponent->BindAction(TEXT("DialogueChoice3"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice3);
@@ -526,17 +554,70 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 			bHandbrakeActive ? TEXT("HOLD") : TEXT("OFF"), RawThrottleInput);
 	}
 
+	if (ScrapeCooldownSec > 0.0f)
+	{
+		ScrapeCooldownSec = FMath::Max(0.0f, ScrapeCooldownSec - DeltaSeconds);
+	}
+	if (bHornKeyDown)
+	{
+		HornHoldDurationSec += DeltaSeconds;
+		if (HornHoldDurationSec >= 0.42f && HornHoldDurationSec - DeltaSeconds < 0.42f)
+		{
+			// Fired once when hold crosses into long aggressive horn ("biiip")
+			TriggerPlayerHorn(HornHoldDurationSec);
+		}
+	}
+
 	FHitResult SweepHit;
 	SetActorLocationAndRotation(NewLoc, NewRot, true, &SweepHit);
 	if (SweepHit.bBlockingHit)
 	{
 		const float ImpactSpeedKmh = FMath::Abs(PlaceholderForwardSpeedCms) * 0.036f;
-		if (ImpactSpeedKmh > 12.0f && PassengerInteraction)
+		const float HeadOnDot = FMath::Abs(FVector::DotProduct(SweepHit.ImpactNormal, GetActorForwardVector()));
+		const bool bLightSideScrape = (ImpactSpeedKmh < 24.0f || HeadOnDot < 0.55f);
+
+		if (bLightSideScrape)
 		{
-			PassengerInteraction->NotifyHardJoltOrCollision(FMath::Clamp(ImpactSpeedKmh / 65.0f, 0.25f, 1.0f), true);
+			// Task 2.3: Light side-scrape in tight chokepoints — gentle speed clamp, scrape sound, small comfort penalty
+			PlaceholderForwardSpeedCms *= 0.85f;
+			if (ScrapeCooldownSec <= 0.0f)
+			{
+				ScrapeCooldownSec = 1.6f;
+				if (USoundBase* ScrapeCue = LoadObject<USoundBase>(nullptr, TEXT("/Engine/VREditor/Sounds/VR_grab.VR_grab")))
+				{
+					UGameplayStatics::PlaySoundAtLocation(this, ScrapeCue, GetActorLocation(), 0.55f, 1.25f);
+				}
+				OnScrape.Broadcast(SweepHit.GetActor(), ImpactSpeedKmh);
+			}
 		}
-		// Slide along curbstones/parked cars and damp speed on collision
-		PlaceholderForwardSpeedCms *= 0.45f;
+		else
+		{
+			if (ImpactSpeedKmh > 12.0f && PassengerInteraction)
+			{
+				PassengerInteraction->NotifyHardJoltOrCollision(FMath::Clamp(ImpactSpeedKmh / 65.0f, 0.25f, 1.0f), true);
+			}
+			PlaceholderForwardSpeedCms *= 0.45f;
+		}
+	}
+
+	// Periodic near-miss check when squeezing past traffic vehicles at > 20 km/h
+	NearMissCheckTimer += DeltaSeconds;
+	if (NearMissCheckTimer >= 0.35f && FMath::Abs(GetSpeedKmh()) > 20.0f)
+	{
+		NearMissCheckTimer = 0.0f;
+		if (AIstanbulTrafficManager* TM = Cast<AIstanbulTrafficManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AIstanbulTrafficManager::StaticClass())))
+		{
+			for (ATrafficVehicle* V : TM->GetSpawnedVehicles())
+			{
+				if (!V) continue;
+				const float CenterDistCm = FVector::Dist2D(GetActorLocation(), V->GetActorLocation());
+				if (CenterDistCm > 185.0f && CenterDistCm < 245.0f)
+				{
+					OnNearMiss.Broadcast(V, CenterDistCm - 180.0f);
+					break;
+				}
+			}
+		}
 	}
 
 	// Set component velocity so UTaximeterComponent and ATollGateVolume read accurate GetVelocity()!
@@ -548,6 +629,7 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 	// Visual body pitch/roll + spinning/steering wheels
 	const float LongPitch = (RawBrakeInput - RawThrottleInput) * 1.8f;
 	const float LatRoll   = -SmoothedSteer * FMath::Clamp(FMath::Abs(PlaceholderForwardSpeedCms) / 1500.0f, 0.0f, 1.0f) * 3.2f;
+	if (TaxiBodyProcMesh)   TaxiBodyProcMesh->SetRelativeRotation(FRotator(LongPitch, 0.0f, LatRoll));
 	if (PlaceholderChassis) PlaceholderChassis->SetRelativeRotation(FRotator(LongPitch, 0.0f, LatRoll));
 	if (PlaceholderCabin)   PlaceholderCabin->SetRelativeRotation(FRotator(LongPitch, 0.0f, LatRoll));
 
@@ -826,14 +908,39 @@ void ATaxiPawn::LegacyAdvanceTime()
 
 void ATaxiPawn::LegacyHornPressed()
 {
-	TriggerPlayerHorn();
+	bHornKeyDown = true;
+	HornHoldDurationSec = 0.0f;
+	// Immediate short polite tap ("bip")
+	TriggerPlayerHorn(0.15f);
 }
 
-void ATaxiPawn::TriggerPlayerHorn()
+void ATaxiPawn::LegacyHornReleased()
 {
+	if (bHornKeyDown && HornHoldDurationSec >= 0.35f)
+	{
+		// If held long, ensure traffic vehicles received the long-press duration
+		TriggerPlayerHorn(HornHoldDurationSec);
+	}
+	bHornKeyDown = false;
+	HornHoldDurationSec = 0.0f;
+}
+
+void ATaxiPawn::TriggerPlayerHorn(float HoldDurationSec)
+{
+	const bool bLongAggressive = (HoldDurationSec >= 0.35f);
 	if (USoundBase* HornCue = LoadObject<USoundBase>(nullptr, TEXT("/Engine/VREditor/Sounds/VR_click1.VR_click1")))
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, HornCue, GetActorLocation(), 1.0f, 0.72f);
+		UGameplayStatics::PlaySoundAtLocation(this, HornCue, GetActorLocation(),
+			bLongAggressive ? 1.15f : 0.85f,
+			bLongAggressive ? 0.64f : 0.78f);
+	}
+
+	if (UWorld* W = GetWorld())
+	{
+		if (AIstanbulTrafficManager* TM = Cast<AIstanbulTrafficManager>(UGameplayStatics::GetActorOfClass(W, AIstanbulTrafficManager::StaticClass())))
+		{
+			TM->BroadcastPlayerHorn(GetActorLocation(), HoldDurationSec);
+		}
 	}
 }
 

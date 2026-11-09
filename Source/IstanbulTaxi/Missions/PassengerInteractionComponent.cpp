@@ -275,6 +275,87 @@ void UPassengerInteractionComponent::NotifyHardJoltOrCollision(float Severity01,
 	}
 }
 
+void UPassengerInteractionComponent::NotifyChokepointEntered(FName ChokepointId, float FreeGapWidthM)
+{
+	if (!bPassengerOnboard || ComplaintCooldown > 0.0f) return;
+	ComplaintCooldown = 6.0f;
+
+	switch (CurrentArchetype)
+	{
+	case EPassengerArchetypeType::RushedCommuter:
+		SayLine(FString::Printf(TEXT("Usta yine daraldı sokak (%.1fm boşluk), bas kornaya açsınlar yolu!"), FreeGapWidthM), 5.5f);
+		break;
+	case EPassengerArchetypeType::PickyAuntie:
+		SayLine(TEXT("Eyvah çift sıra park etmişler, sakın aynaları sürtme evladım yavaş geç!"), 5.5f);
+		break;
+	case EPassengerArchetypeType::ForeignTourist:
+		SayLine(TEXT("Wow, how do Istanbul drivers fit through such narrow streets?!"), 5.5f);
+		break;
+	case EPassengerArchetypeType::ChattyLocal:
+		SayLine(TEXT("Klasik İstanbul sokağı be kaptan, kargocu dörtlüleri yakmış yolu kapatmış yine!"), 5.5f);
+		break;
+	}
+}
+
+void UPassengerInteractionComponent::NotifyHornExchange(AActor* /*ResponderVehicle*/, bool bLongAggressiveHorn, FString ReactionSummary)
+{
+	if (!bPassengerOnboard) return;
+
+	if (bLongAggressiveHorn && CurrentArchetype == EPassengerArchetypeType::PickyAuntie)
+	{
+		ComfortScore  = FMath::Clamp(ComfortScore - 3.5f, 0.0f, 100.0f);
+		PatienceScore = FMath::Clamp(PatienceScore - 2.5f, 0.0f, 100.0f);
+		if (ComplaintCooldown <= 0.0f)
+		{
+			ComplaintCooldown = 5.0f;
+			SayLine(TEXT("Oğlum kulağımın dibinde o kadar uzun kornaya basma, başım şişti!"), 5.0f);
+		}
+	}
+	else if (CurrentArchetype == EPassengerArchetypeType::RushedCommuter)
+	{
+		PatienceScore = FMath::Clamp(PatienceScore + 2.0f, 0.0f, 100.0f);
+		if (ComplaintCooldown <= 0.0f)
+		{
+			ComplaintCooldown = 5.5f;
+			SayLine(FString::Printf(TEXT("Hah şöyle usta, kornayı duyunca çekiliyorlar (%s)!"), *ReactionSummary), 4.5f);
+		}
+	}
+}
+
+void UPassengerInteractionComponent::NotifyNearMiss(AActor* /*OtherVehicle*/, float ClearanceCm)
+{
+	if (!bPassengerOnboard) return;
+
+	if (CurrentArchetype == EPassengerArchetypeType::PickyAuntie)
+	{
+		ComfortScore = FMath::Clamp(ComfortScore - 4.0f, 0.0f, 100.0f);
+		if (ComplaintCooldown <= 0.0f)
+		{
+			ComplaintCooldown = 5.0f;
+			SayLine(FString::Printf(TEXT("Ayy! %.0f santimle sıyırdık evladım, yüreğime inecek!"), ClearanceCm), 4.8f);
+		}
+	}
+	else if (CurrentArchetype == EPassengerArchetypeType::ChattyLocal && ComplaintCooldown <= 0.0f)
+	{
+		ComplaintCooldown = 5.5f;
+		ComfortScore = FMath::Clamp(ComfortScore + 1.5f, 0.0f, 100.0f);
+		SayLine(FString::Printf(TEXT("Helal olsun kaptan, jilet gibi (%.0f cm) geçtin aradan!"), ClearanceCm), 4.8f);
+	}
+}
+
+void UPassengerInteractionComponent::NotifyVehicleScrape(AActor* /*ScrapedActor*/, float /*ScrapeSpeedKmh*/)
+{
+	if (!bPassengerOnboard) return;
+
+	ComfortScore  = FMath::Clamp(ComfortScore - 5.0f, 0.0f, 100.0f);
+	PatienceScore = FMath::Clamp(PatienceScore - 3.5f, 0.0f, 100.0f);
+	if (ComplaintCooldown <= 0.0f)
+	{
+		ComplaintCooldown = 4.5f;
+		SayLine(TEXT("Cızzz! Usta tamponu hafif sürttük galiba, dar yerden geçerken dikkat et!"), 5.0f);
+	}
+}
+
 void UPassengerInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);

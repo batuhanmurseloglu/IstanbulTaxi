@@ -17,8 +17,12 @@ class UTaxiSurfaceComponent;
 class UTaximeterComponent;
 class UPassengerInteractionComponent;
 class UWidgetComponent;
+class UProceduralMeshComponent;
 class UChaosWheeledVehicleMovementComponent;
 struct FInputActionValue;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaxiNearMiss, AActor*, OtherVehicle, float, ClearanceCm);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaxiScrape, AActor*, ScrapedActor, float, ScrapeSpeedKmh);
 
 /**
  * The player's taxi: ~1350 kg Egea-class FWD sedan on Chaos, soft suspension,
@@ -61,7 +65,13 @@ public:
 	bool IsDebugSlopeTelemetryEnabled() const { return bDebugSlopeTelemetry; }
 
 	UFUNCTION(BlueprintCallable, Category = "Taxi")
-	void TriggerPlayerHorn();
+	void TriggerPlayerHorn(float HoldDurationSec = 0.15f);
+
+	UPROPERTY(BlueprintAssignable, Category = "Taxi|Gameplay")
+	FOnTaxiNearMiss OnNearMiss;
+
+	UPROPERTY(BlueprintAssignable, Category = "Taxi|Gameplay")
+	FOnTaxiScrape OnScrape;
 
 	UFUNCTION(BlueprintPure, Category = "Taxi")
 	bool IsInteriorCamera() const { return bInteriorCamera; }
@@ -122,6 +132,10 @@ protected:
 	TObjectPtr<UAudioComponent> RoadNoiseAudio;
 
 	// ---- Placeholder Visual Components (automatically hidden when a SkeletalMesh is assigned) ----
+	/** Refined beveled Sarı Taksi procedural mesh (Task 2.1, shared with ATrafficVehicle::BuildIstanbulVehicleMeshSections). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TObjectPtr<UProceduralMeshComponent> TaxiBodyProcMesh;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
 	TObjectPtr<UStaticMeshComponent> PlaceholderChassis;
 
@@ -251,6 +265,7 @@ private:
 	void LegacyTriggerEzan();
 	void LegacyAdvanceTime();
 	void LegacyHornPressed();
+	void LegacyHornReleased();
 	void LegacyDialogueChoice1();
 	void LegacyDialogueChoice2();
 	void LegacyDialogueChoice3();
@@ -274,6 +289,10 @@ private:
 	float CurrentSlopeAngleDeg = 0.0f;
 	float SlopeDebugLogAccumulator = 0.0f;
 	bool bDebugSlopeTelemetry = false;
+	bool bHornKeyDown = false;
+	float HornHoldDurationSec = 0.0f;
+	float NearMissCheckTimer = 0.0f;
+	float ScrapeCooldownSec = 0.0f;
 
 	bool bInteriorCamera = false;
 	float WindowOpenRatio = 0.0f;
