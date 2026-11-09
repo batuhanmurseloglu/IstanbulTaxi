@@ -1,23 +1,25 @@
-# İstanbul Taksi Simülatörü — Permanent Agent & Workspace Rules
+# IstanbulTaxi agent rules
 
-## 1. Mandatory Automatic Git Sync After Every Task
-Whenever you complete **any** coding task, bugfix, config update, or feature milestone in this workspace, you **MUST AUTOMATICALLY** perform the following Git workflow before ending your turn (without waiting for the user to ask):
+## Workflow (run automatically after each completed task, without asking)
+1. BUILD CHECK: compile the editor target with UnrealBuildTool:
+   "<UE_ROOT>\Engine\Build\BatchFiles\Build.bat" IstanbulTaxiEditor Win64 Development -Project="<REPO_ROOT>\IstanbulTaxi.uproject" -WaitMutex -NoHotReload
+   Resolve <UE_ROOT> and <REPO_ROOT> from the environment or the .uproject location. If the build fails: fix the errors and rebuild. Do NOT commit or push a failing build. After 3 failed fix attempts, stop and report the errors.
+2. REVIEW: run `git status` and `git diff --stat`. Confirm only intended files changed.
+3. STAGE: `git add` only source and config files: Source/**, Config/**, *.uproject, *.Build.cs, *.Target.cs, .antigravityrules, .gitignore, README/docs, and intentionally added Content/**. Never stage Binaries/, Intermediate/, Saved/, DerivedDataCache/, .vs/, *.sln, or large generated files.
+4. COMMIT: one focused commit per logical task, Conventional Commits format:
+   <type>(<scope>): <imperative summary, max 72 chars>
+   <blank line>
+   <body: what changed and why, bullet points, mention classes/files touched>
+   Types: feat, fix, refactor, perf, chore, docs, build. Example:
+   feat(scene): add Bosphorus water volume and coastal quay
+5. SYNC AND PUSH: `git pull --rebase origin main`, rebuild if the pull changed source files, then `git push origin main`.
+   - Never use --force or --force-with-lease. Never rewrite published history.
+   - If a rebase conflict occurs, resolve it only if trivial and the build still passes; otherwise abort the rebase (`git rebase --abort`) and report the conflict.
+   - If the push is rejected, pull --rebase once more and retry once; then report.
+6. REPORT: print the commit hash, the commit message, files changed, and the push result.
 
-1. **Stage Changes**:
-   Run `git add -A` in `c:\Users\batuh\Desktop\IstanbulTaxi`.
-2. **Verify Clean Index & Security**:
-   - Run `git status --short` and `git diff --cached --name-only`.
-   - Ensure **no** ignored build/cache folders (`Binaries/`, `Intermediate/`, `Saved/`, `DerivedDataCache/`, `.vs/`, `*.sln`) or sensitive files (`.env*`, `Config/*Crypto*.ini`, API keys, tokens, credentials) are staged.
-   - If any unwanted or sensitive file is staged, immediately unstage it (`git reset HEAD <file>`) and update `.gitignore` if needed.
-3. **Commit with a Descriptive Message**:
-   Create a clean, concise commit message summarizing the completed change (e.g., `git commit -m "feat(weather): implement UWeatherSubsystem and wet grip integration"`).
-4. **Push to GitHub**:
-   Run `git push origin main` so `https://github.com/batuhanmurseloglu/IstanbulTaxi.git` is always up to date.
-
----
-
-## 2. Core Engineering Principles (UE 5.4 C++)
-- **The city is the main character**: Prioritize Istanbul atmosphere, urban density, and authenticity.
-- **Zero-broken-builds**: Compile changes against `IstanbulTaxiEditor Win64 Development` (`D:\UE_5.4\Engine\Build\BatchFiles\Build.bat`) before committing and pushing C++ modifications.
-- **Subsystem & Data-Driven Architecture**: Use `UWorldSubsystem` / `UGameInstanceSubsystem`, GameplayTags (`IstanbulTaxiTags`), and DataAssets/DataTables with zero-asset C++ runtime fallbacks so the game always runs out of the box.
-- **Financial Precision**: Store all Turkish Lira amounts in integer **kuruş** (`int32`, `1 TL = 100 kuruş`).
+## Safety
+- Never commit secrets, API keys, tokens, or .env files. Scan the staged diff for them before committing.
+- Ensure `.gitignore` contains the standard Unreal entries (Binaries, Intermediate, Saved, DerivedDataCache, .vs, *.sln, *.suo, *.VC.db, *.opensdf) and add any that are missing.
+- If git is not initialized or `origin` is not set, report this and stop instead of guessing a remote URL.
+- Keep commits small and buildable; one feature area per commit (e.g. geography, vehicles, props, git/chore).
