@@ -1,0 +1,47 @@
+# =============================================================================
+# Unreal Engine 5.4 Standard Ignore Rules
+# =============================================================================
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# =============================================================================
+# Visual Studio / Rider / IDE Artifacts & Upgrade Backups
+# =============================================================================
+.vs/
+.idea/
+.vscode/
+*.sln
+*.suo
+*.VC.db
+*.VC.opendb
+*.opensdf
+*.sdf
+*.xcodeproj
+*.xcworkspace
+.vsconfig
+Backup*/
+UpgradeLog*.htm
+
+# =============================================================================
+# Docs / Local Notes (keep repository strictly to UE project sources & assets)
+# =============================================================================
+Docs/
+
+# =============================================================================
+# Security & Local Credentials Exclusions
+# =============================================================================
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.keystore
+*secret*
+*credentials*
+Config/DefaultCrypto.ini
+Config/*Crypto*.ini

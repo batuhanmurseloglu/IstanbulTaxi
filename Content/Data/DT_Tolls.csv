@@ -1,0 +1,5 @@
+---,DisplayName,CrossingTag,FeeKurus,bHasNightRate,NightFeeKurus,NightStartHour,NightEndHour,ChargedDirection
+Bridge_15Temmuz,"NSLOCTEXT(""Tolls"", ""15Temmuz"", ""15 Temmuz Şehitler Köprüsü"")","(TagName=""Crossing.Bridge.15Temmuz"")",5900,False,0,0,5,EuropeToAsia
+Bridge_FSM,"NSLOCTEXT(""Tolls"", ""FSM"", ""Fatih Sultan Mehmet Köprüsü"")","(TagName=""Crossing.Bridge.FSM"")",5900,False,0,0,5,EuropeToAsia
+Bridge_YSS,"NSLOCTEXT(""Tolls"", ""YSS"", ""Yavuz Sultan Selim Köprüsü"")","(TagName=""Crossing.Bridge.YavuzSultanSelim"")",11000,False,0,0,5,Both
+Tunnel_Avrasya,"NSLOCTEXT(""Tolls"", ""Avrasya"", ""Avrasya Tüneli"")","(TagName=""Crossing.Tunnel.Avrasya"")",33000,True,16500,0,5,Both

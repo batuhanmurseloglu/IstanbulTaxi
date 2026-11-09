@@ -1,0 +1,19 @@
+Key,SourceString,Comment
+State_Free,BOŞ,Taximeter state - free
+State_Hired,DOLU,Taximeter state - hired
+State_Paused,BEKLEMEDE,Taximeter state - paused
+Currency,₺,Currency symbol
+Segment_Sari,Sarı Taksi,Yellow taxi segment
+Segment_Turkuaz,Turkuaz Taksi,Turquoise taxi segment
+Segment_Siyah,Siyah Taksi,Black (VIP) taxi segment
+Segment_8Plus1,8+1 Taksi,8+1 seat taxi segment
+Remark_MeterNotStarted,"Abi, taksimetreyi açmadın!",Passenger notices meter off
+Remark_LongRoute,Neden bu yoldan gittik?,Passenger suspects long route
+Remark_Disputed,Bu kadar vermem!,Passenger disputes fare
+Remark_Tip,Üstü kalsın.,Passenger tips
+Receipt_Opening,Açılış,Receipt line
+Receipt_Distance,Mesafe,Receipt line
+Receipt_Waiting,Bekleme,Receipt line
+Receipt_Tolls,Köprü / Tünel,Receipt line
+Receipt_Minimum,İndi-bindi farkı,Receipt line
+Receipt_Total,Toplam,Receipt line
