@@ -7,8 +7,8 @@ namespace
 		W.WheelRadius = 31.5f;            // 195/65 R15
 		W.WheelWidth = 19.5f;
 		W.WheelMass = 18.0f;
-		W.FrictionForceMultiplier = 2.5f; // base grip; surface system scales this per wheel
-		W.CorneringStiffness = 800.0f;    // a bit lazy -> forgiving, readable slides
+		W.FrictionForceMultiplier = 3.2f; // high traction for 18-deg Cihangir/Galata cobblestone hill-starts
+		W.CorneringStiffness = 850.0f;    // forgiving, readable slides
 		W.SideSlipModifier = 1.0f;
 		W.SlipThreshold = 20.0f;
 		W.SkidThreshold = 20.0f;
@@ -22,7 +22,7 @@ namespace
 		W.SuspensionSmoothing = 4;
 		W.RollbarScaling = 0.15f;         // allow visible body roll
 
-		W.MaxBrakeTorque = 1500.0f;
+		W.MaxBrakeTorque = 2400.0f;
 		W.bABSEnabled = true;
 		W.bTractionControlEnabled = true;
 	}
@@ -35,8 +35,9 @@ UTaxiWheelFront::UTaxiWheelFront()
 	bAffectedBySteering = true;
 	MaxSteerAngle = 36.0f;
 	bAffectedByEngine = true;
-	bAffectedByHandbrake = false;
+	bAffectedByHandbrake = true;
 	bAffectedByBrake = true;
+	MaxHandBrakeTorque = 4500.0f;
 }
 
 UTaxiWheelRear::UTaxiWheelRear()
@@ -45,9 +46,9 @@ UTaxiWheelRear::UTaxiWheelRear()
 	AxleType = EAxleType::Rear;
 	bAffectedBySteering = false;
 	MaxSteerAngle = 0.0f;
-	bAffectedByEngine = false;
+	bAffectedByEngine = true;
 	bAffectedByHandbrake = true;
 	bAffectedByBrake = true;
-	MaxBrakeTorque = 1000.0f;
-	MaxHandBrakeTorque = 3000.0f;
+	MaxBrakeTorque = 1800.0f;
+	MaxHandBrakeTorque = 6500.0f; // Holds 1350 kg on an 18-deg slope with zero creep
 }

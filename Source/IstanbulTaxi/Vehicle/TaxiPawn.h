@@ -50,6 +50,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Taxi")
 	int32 GetCurrentGear() const;
 
+	/** Signed road pitch angle under the vehicle in degrees (+ = climbing uphill, - = descending). */
+	UFUNCTION(BlueprintPure, Category = "Taxi|Slope")
+	float GetCurrentSlopeAngleDegrees() const { return CurrentSlopeAngleDeg; }
+
+	UFUNCTION(BlueprintCallable, Category = "Taxi|Slope")
+	void SetDebugSlopeTelemetry(bool bEnabled) { bDebugSlopeTelemetry = bEnabled; }
+
+	UFUNCTION(BlueprintPure, Category = "Taxi|Slope")
+	bool IsDebugSlopeTelemetryEnabled() const { return bDebugSlopeTelemetry; }
+
 	UFUNCTION(BlueprintCallable, Category = "Taxi")
 	void TriggerPlayerHorn();
 
@@ -261,6 +271,9 @@ private:
 	bool bUsingPlaceholderDrive = false;
 	float PlaceholderForwardSpeedCms = 0.0f;
 	float PlaceholderWheelSpinDeg = 0.0f;
+	float CurrentSlopeAngleDeg = 0.0f;
+	float SlopeDebugLogAccumulator = 0.0f;
+	bool bDebugSlopeTelemetry = false;
 
 	bool bInteriorCamera = false;
 	float WindowOpenRatio = 0.0f;

@@ -29,26 +29,39 @@ ATaxiPawn::ATaxiPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// --- Chaos setup: Egea-class 1350 kg FWD sedan, comfy and honest ---
+	// --- Chaos setup: Egea-class 1350 kg sedan tuned for 18° Cihangir/Galata hill-starts ---
+	// Physics Verification on 18° grade (tan 18° = 32.5%, sin 18° = 0.309):
+	//   Gravity pullback force: F_g = 1350 kg * 9.81 m/s^2 * sin(18°) = 4,092 N
+	//   Hold torque at wheel (R = 0.315 m): T_hold = 4,092 * 0.315 = 1,289 Nm
+	//   With MaxTorque = 420 Nm, low-end diesel torque curve (0.82 @ 850 RPM),
+	//   1st gear = 3.90, FinalRatio = 4.10 -> Wheel launch torque = 5,506 Nm (4.2x T_hold!).
 	UChaosWheeledVehicleMovementComponent* Move = CastChecked<UChaosWheeledVehicleMovementComponent>(GetVehicleMovementComponent());
 	Move->Mass = 1350.0f;
 	Move->DragCoefficient = 0.31f;
 	Move->ChassisWidth = 179.0f;
 	Move->ChassisHeight = 145.0f;
 	Move->bEnableCenterOfMassOverride = true;
-	Move->CenterOfMassOverride = FVector(15.0f, 0.0f, -10.0f); // slightly nose-heavy, low
+	Move->CenterOfMassOverride = FVector(15.0f, 0.0f, -15.0f); // low CoM prevents rear weight-transfer wheelspin on 18°
 
-	Move->EngineSetup.MaxTorque = 320.0f;     // 1.6 Multijet diesel feel
+	Move->EngineSetup.MaxTorque = 420.0f;     // Tuned 1.6 Multijet turbo-diesel torque (Nm) for 18° hill climbs
 	Move->EngineSetup.MaxRPM = 4800.0f;
 	Move->EngineSetup.EngineIdleRPM = 850.0f;
-	Move->EngineSetup.EngineBrakeEffect = 0.15f;
-	Move->EngineSetup.EngineRevUpMOI = 5.0f;
+	Move->EngineSetup.EngineBrakeEffect = 0.22f;
+	Move->EngineSetup.EngineRevUpMOI = 4.5f;
 	Move->EngineSetup.EngineRevDownRate = 600.0f;
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->Reset();
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->AddKey(800.0f,  345.0f);
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->AddKey(1500.0f, 420.0f);
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->AddKey(2750.0f, 420.0f);
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->AddKey(3800.0f, 365.0f);
+	Move->EngineSetup.TorqueCurve.GetRichCurve()->AddKey(4800.0f, 270.0f);
 
-	Move->DifferentialSetup.DifferentialType = EVehicleDifferential::FrontWheelDrive;
+	Move->DifferentialSetup.DifferentialType = EVehicleDifferential::AllWheelDrive;
+	Move->DifferentialSetup.FrontRearSplit = 0.58f;
 	Move->TransmissionSetup.bUseAutomaticGears = true;
 	Move->TransmissionSetup.bUseAutoReverse = true;
-	Move->TransmissionSetup.GearChangeTime = 0.35f;
+	Move->TransmissionSetup.FinalRatio = 4.10f;
+	Move->TransmissionSetup.GearChangeTime = 0.28f;
 
 	Move->SteeringSetup.SteeringType = ESteeringType::AngleRatio;
 	Move->SteeringSetup.AngleRatio = 0.7f;
@@ -414,32 +427,41 @@ void ATaxiPawn::Tick(float DeltaSeconds)
 
 void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 {
-	// Credible ~1350kg Egea kinematic model with real gravity slope resistance on 12°-18° Cihangir/Galata hills!
-	const float AccelCms2    = 680.0f;  // 1.6 Multijet diesel torque
-	const float BrakeCms2    = 1550.0f;
-	const float ReverseCms2  = 440.0f;
+	// Credible ~1350kg Egea kinematic model tuned for 12°-18° Cihangir/Galata hills:
+	// - At 18° (sin 18° = 0.309), SlopeGravityAccelCms2 = -980 * 0.309 * 0.72 = -218 cm/s^2.
+	// - AccelCms2 = 820 cm/s^2 gives +602 cm/s^2 net uphill acceleration at full throttle (never stalls on 18°!).
+	// - Handbrake clamps speed to 0.0 with zero creep at any angle up to 25°; releasing handbrake while on throttle
+	//   performs a clean, rollback-free hill-start.
+	const float AccelCms2    = 820.0f;  // 420 Nm diesel launch authority
+	const float BrakeCms2    = 1750.0f;
+	const float ReverseCms2  = 520.0f;
 	const float DragPerSec   = 0.42f;
 	const float MaxFwdCms    = 3888.0f; // ~140 km/h
 	const float MaxRevCms    = -972.0f; // ~35 km/h
 
-	// Gravity component along current road pitch: G * sin(Pitch) -> challenges uphill starts unless Space handbrake or throttle is held!
 	const float PitchRad = FMath::DegreesToRadians(GetActorRotation().Pitch);
-	const float SlopeGravityAccelCms2 = -980.0f * FMath::Sin(PitchRad) * 0.65f;
+	const float SlopeGravityAccelCms2 = -980.0f * FMath::Sin(PitchRad) * 0.72f;
 
 	if (bHandbrakeActive)
 	{
-		// Handbrake holds the car stationary on steep hills (Spacebar hill-start!)
-		PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2 * 1.4f);
+		// Handbrake holds the car on 18° slopes with zero creep!
+		PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2 * 2.2f);
+		if (FMath::Abs(PlaceholderForwardSpeedCms) < 35.0f)
+		{
+			PlaceholderForwardSpeedCms = 0.0f;
+		}
 	}
 	else if (RawThrottleInput > 0.01f)
 	{
 		if (PlaceholderForwardSpeedCms < -25.0f)
 		{
-			PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2);
+			PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2 * 1.4f);
 		}
 		else
 		{
-			PlaceholderForwardSpeedCms += (RawThrottleInput * AccelCms2 + SlopeGravityAccelCms2) * DeltaSeconds;
+			// Clean hill-start launch torque when starting from near-zero speed on a steep uphill grade
+			const float HillStartAssist = (PlaceholderForwardSpeedCms < 180.0f && GetActorRotation().Pitch > 6.0f) ? 1.22f : 1.0f;
+			PlaceholderForwardSpeedCms += (RawThrottleInput * AccelCms2 * HillStartAssist + SlopeGravityAccelCms2) * DeltaSeconds;
 		}
 	}
 	else if (RawBrakeInput > 0.01f)
@@ -478,18 +500,31 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 	FHitResult GroundHit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TaxiGroundSnap), false, this);
 	float GroundSlopePitchDeg = 0.0f;
-	if (GetWorld()->LineTraceSingleByChannel(GroundHit, NewLoc + FVector(0, 0, 220.0f), NewLoc - FVector(0, 0, 320.0f), ECC_Visibility, Params))
+	if (GetWorld()->LineTraceSingleByChannel(GroundHit, NewLoc + FVector(0, 0, 260.0f), NewLoc - FVector(0, 0, 360.0f), ECC_Visibility, Params))
 	{
-		NewLoc.Z = FMath::FInterpTo(GetActorLocation().Z, GroundHit.ImpactPoint.Z + 2.0f, DeltaSeconds, 18.0f);
+		NewLoc.Z = FMath::FInterpTo(GetActorLocation().Z, GroundHit.ImpactPoint.Z + 2.0f, DeltaSeconds, 20.0f);
 		const FVector FwdXY = FRotator(0.0f, NewRot.Yaw, 0.0f).Vector();
-		GroundSlopePitchDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(-FVector::DotProduct(GroundHit.ImpactNormal, FwdXY), -0.5f, 0.5f)));
+		GroundSlopePitchDeg = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(-FVector::DotProduct(GroundHit.ImpactNormal, FwdXY), -0.6f, 0.6f)));
 		if (SurfaceComponent)
 		{
 			SurfaceComponent->NotifyGroundTraceHit(GroundHit, PlaceholderForwardSpeedCms * 0.036f);
 		}
 	}
-	NewRot.Pitch = FMath::FInterpTo(NewRot.Pitch, GroundSlopePitchDeg, DeltaSeconds, 10.0f);
+	NewRot.Pitch = FMath::FInterpTo(NewRot.Pitch, GroundSlopePitchDeg, DeltaSeconds, 12.0f);
 	NewRot.Roll = 0.0f;
+	CurrentSlopeAngleDeg = NewRot.Pitch;
+
+	// Periodic debug log of slope angle under the vehicle when on an incline (> 4 deg) or when DebugSlopeTelemetry is toggled on
+	SlopeDebugLogAccumulator += DeltaSeconds;
+	if (SlopeDebugLogAccumulator >= 1.5f && (bDebugSlopeTelemetry || FMath::Abs(CurrentSlopeAngleDeg) >= 4.0f))
+	{
+		SlopeDebugLogAccumulator = 0.0f;
+		const float GradePct = FMath::Tan(FMath::DegreesToRadians(FMath::Abs(CurrentSlopeAngleDeg))) * 100.0f;
+		UE_LOG(LogIstanbulTaxi, Log,
+			TEXT("TaxiSlopeTelemetry: Slope=%.2f deg (Grade=%.1f%%), Speed=%.1f km/h, Handbrake=%s, Throttle=%.2f"),
+			CurrentSlopeAngleDeg, GradePct, GetSpeedKmh(),
+			bHandbrakeActive ? TEXT("HOLD") : TEXT("OFF"), RawThrottleInput);
+	}
 
 	FHitResult SweepHit;
 	SetActorLocationAndRotation(NewLoc, NewRot, true, &SweepHit);
