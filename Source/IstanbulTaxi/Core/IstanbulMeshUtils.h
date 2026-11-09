@@ -63,6 +63,22 @@ public:
 	static void AppendExtrudedProfileXZ(FIstanbulMeshSectionData& OutSection, const FTransform& Transform,
 		const TArray<FVector2D>& ProfilePointsXZ, float ThicknessYCm, const FLinearColor& Color);
 
+	/** Appends a yellow-black alternating-band striped traffic bollard (Duba) using vertex colors. */
+	static void AppendStripedBollard(FIstanbulMeshSectionData& OutSection, const FVector& BaseLocation,
+		float RadiusCm = 12.0f, float HeightCm = 88.0f, int32 Sides = 10);
+
+	/** Appends a coursed historic stone retaining wall with per-block warm beige/grey vertex-color variation. */
+	static void AppendStoneWallWithVariation(FIstanbulMeshSectionData& OutSection, const FTransform& Transform,
+		float LengthCm, float HeightCm, float ThicknessCm, FRandomStream& Rng);
+
+	/** Appends a sagging backstreet cable with either hanging laundry clothes or a warm central street lantern. */
+	static void AppendBackstreetLaundryOrLantern(FIstanbulMeshSectionData& OutSection, const FVector& Start,
+		const FVector& End, float SagCm, bool bHangingLantern, FRandomStream& Rng);
+
+	/** Appends a low-cost café table + 2 chairs + optional street cat silhouette cluster on a sidewalk/square. */
+	static void AppendCafeTableAndCatCluster(FIstanbulMeshSectionData& OutSection, const FVector& BaseLocation,
+		float YawDeg, FRandomStream& Rng);
+
 	/** Appends a quad with automatic normal, UVs, and vertex color. */
 	static void AppendQuad(FIstanbulMeshSectionData& OutSection, const FVector& V0, const FVector& V1,
 		const FVector& V2, const FVector& V3, const FLinearColor& Color);

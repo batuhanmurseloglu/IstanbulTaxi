@@ -268,3 +268,105 @@ void FIstanbulMeshUtils::AppendExtrudedProfileXZ(FIstanbulMeshSectionData& OutSe
 		AppendQuad(OutSection, F3, F2, B3, B2, Color * 1.08f);
 	}
 }
+
+void FIstanbulMeshUtils::AppendStripedBollard(FIstanbulMeshSectionData& OutSection, const FVector& BaseLocation,
+	float RadiusCm, float HeightCm, int32 Sides)
+{
+	// 4 alternating vertical bands: Yellow -> Black -> Yellow -> Black
+	const FLinearColor BandYellow = FLinearColor::FromSRGBColor(FColor(0xF5, 0xC4, 0x00));
+	const FLinearColor BandBlack(0.05f, 0.05f, 0.06f, 1.0f);
+	const int32 NumBands = 4;
+	const float BandH = HeightCm / (float)NumBands;
+
+	for (int32 b = 0; b < NumBands; ++b)
+	{
+		const float ZCenter = (b + 0.5f) * BandH;
+		const FLinearColor Col = (b % 2 == 0) ? BandYellow : BandBlack;
+		AppendCylinder(
+			OutSection,
+			FTransform(FRotator::ZeroRotator, BaseLocation + FVector(0.0f, 0.0f, ZCenter)),
+			RadiusCm, BandH * 0.5f, Sides, Col, (b == NumBands - 1));
+	}
+}
+
+void FIstanbulMeshUtils::AppendStoneWallWithVariation(FIstanbulMeshSectionData& OutSection, const FTransform& Transform,
+	float LengthCm, float HeightCm, float ThicknessCm, FRandomStream& Rng)
+{
+	const int32 CoursesZ = FMath::Clamp(FMath::RoundToInt(HeightCm / 65.0f), 2, 8);
+	const int32 BlocksX  = FMath::Clamp(FMath::RoundToInt(LengthCm / 220.0f), 4, 28);
+	const float CourseH  = HeightCm / (float)CoursesZ;
+	const float BlockW   = LengthCm / (float)BlocksX;
+	const float HalfY    = ThicknessCm * 0.5f;
+
+	for (int32 iz = 0; iz < CoursesZ; ++iz)
+	{
+		const bool bBrickCourse = (iz == 1 || iz == CoursesZ - 1);
+		for (int32 ix = 0; ix < BlocksX; ++ix)
+		{
+			const float X0 = -LengthCm * 0.5f + ix * BlockW;
+			const float Z0 = -HeightCm * 0.5f + iz * CourseH;
+			const float Noise = Rng.FRandRange(0.84f, 1.14f);
+			const FLinearColor BaseTone = bBrickCourse
+				? FLinearColor(0.56f, 0.25f, 0.19f) * Noise  // Khorasan brick course
+				: FLinearColor(0.54f, 0.50f, 0.44f) * Noise; // Warm Istanbul limestone block
+
+			const FTransform BlockXf = FTransform(FRotator::ZeroRotator, FVector(X0 + BlockW * 0.5f, 0.0f, Z0 + CourseH * 0.5f)) * Transform;
+			AppendBeveledBox(OutSection, BlockXf, FVector(BlockW * 0.49f, HalfY, CourseH * 0.48f), 2.5f, BaseTone);
+		}
+	}
+}
+
+void FIstanbulMeshUtils::AppendBackstreetLaundryOrLantern(FIstanbulMeshSectionData& OutSection, const FVector& Start,
+	const FVector& End, float SagCm, bool bHangingLantern, FRandomStream& Rng)
+{
+	AppendCatenaryCable(OutSection, Start, End, SagCm, 2.2f, 8, FLinearColor(0.04f, 0.04f, 0.05f));
+
+	if (bHangingLantern)
+	{
+		const FVector Mid = (Start + End) * 0.5f - FVector(0.0f, 0.0f, SagCm + 18.0f);
+		AppendBeveledBox(OutSection, FTransform(FRotator::ZeroRotator, Mid),
+			FVector(14.0f, 14.0f, 20.0f), 4.0f, FLinearColor(1.0f, 0.82f, 0.35f));
+	}
+	else
+	{
+		static const FLinearColor ClothPalette[5] = {
+			FLinearColor(0.88f, 0.22f, 0.18f),
+			FLinearColor(0.92f, 0.92f, 0.90f),
+			FLinearColor(0.18f, 0.46f, 0.82f),
+			FLinearColor(0.94f, 0.72f, 0.14f),
+			FLinearColor(0.24f, 0.68f, 0.42f)
+		};
+		for (int32 c = 1; c <= 5; ++c)
+		{
+			const float T = (float)c / 6.0f;
+			const float Sag = 4.0f * T * (1.0f - T) * SagCm;
+			const FVector Pos = FMath::Lerp(Start, End, T) - FVector(0.0f, 0.0f, Sag + 32.0f);
+			const FLinearColor Col = ClothPalette[Rng.RandRange(0, 4)];
+			AppendBeveledBox(OutSection, FTransform(FRotator(0.0f, 90.0f, 0.0f), Pos),
+				FVector(24.0f, 2.5f, 30.0f), 1.0f, Col);
+		}
+	}
+}
+
+void FIstanbulMeshUtils::AppendCafeTableAndCatCluster(FIstanbulMeshSectionData& OutSection, const FVector& BaseLocation,
+	float YawDeg, FRandomStream& Rng)
+{
+	const FTransform BaseXf(FRotator(0.0f, YawDeg, 0.0f), BaseLocation);
+	const FLinearColor WoodCol(0.46f, 0.28f, 0.14f);
+	const FLinearColor ClothCol(0.85f, 0.16f, 0.14f);
+
+	// Small round tea-garden table (Çay masası) + 2 low stools (Tabure)
+	AppendCylinder(OutSection, FTransform(FVector(0, 0, 36.0f)) * BaseXf, 6.0f, 36.0f, 8, WoodCol, false);
+	AppendCylinder(OutSection, FTransform(FVector(0, 0, 72.0f)) * BaseXf, 42.0f, 3.0f, 10, ClothCol, true);
+	AppendBeveledBox(OutSection, FTransform(FVector(-58.0f, 0.0f, 22.0f)) * BaseXf, FVector(16.0f, 16.0f, 22.0f), 2.0f, WoodCol);
+	AppendBeveledBox(OutSection, FTransform(FVector( 58.0f, 0.0f, 22.0f)) * BaseXf, FVector(16.0f, 16.0f, 22.0f), 2.0f, WoodCol);
+
+	// Iconic Istanbul Street Cat silhouette (Sokak Kedisi: body + head + upright tail)
+	const FLinearColor CatCol = (Rng.FRand() < 0.5f)
+		? FLinearColor(0.85f, 0.48f, 0.14f) // Sarman (Orange tabby)
+		: FLinearColor(0.18f, 0.18f, 0.20f); // Tuxedo / Smoke cat
+	const FTransform CatXf = FTransform(FRotator(0.0f, 35.0f, 0.0f), FVector(28.0f, 48.0f, 0.0f)) * BaseXf;
+	AppendBeveledBox(OutSection, FTransform(FVector(0.0f, 0.0f, 12.0f)) * CatXf,  FVector(16.0f, 7.0f, 9.0f), 2.5f, CatCol);
+	AppendBeveledBox(OutSection, FTransform(FVector(15.0f, 0.0f, 21.0f)) * CatXf, FVector(7.0f,  6.5f, 6.5f), 2.0f, CatCol);
+	AppendBeveledBox(OutSection, FTransform(FVector(-15.0f, 0.0f, 22.0f)) * CatXf, FVector(2.5f, 2.0f, 11.0f), 0.5f, CatCol);
+}

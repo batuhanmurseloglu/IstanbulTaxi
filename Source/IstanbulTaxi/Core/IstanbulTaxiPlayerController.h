@@ -15,6 +15,19 @@ class ISTANBULTAXI_API AIstanbulTaxiPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+public:
+	UFUNCTION(Exec)
+	void IstanbulRebuild();
+
+	UFUNCTION(Exec)
+	void IstanbulTeleportToSlope();
+
+	UFUNCTION(Exec)
+	void IstanbulTeleportToBosphorus();
+
+	UFUNCTION(Exec)
+	void IstanbulToggleDebugSlope();
+
 protected:
 	virtual void BeginPlay() override;
 

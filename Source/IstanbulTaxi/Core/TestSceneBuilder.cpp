@@ -28,8 +28,69 @@
 #include "Components/SplineComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
+#include "HAL/IConsoleManager.h"
+#include "Vehicle/TaxiPawn.h"
 
 const FName ATestSceneBuilder::GeneratedActorTag(TEXT("IstanbulGenerated"));
+
+// =============================================================================
+// Console Commands (Task 3: Istanbul.Rebuild, Istanbul.TeleportToSlope,
+//                   Istanbul.TeleportToBosphorus, Istanbul.ToggleDebugSlope)
+// =============================================================================
+static FAutoConsoleCommandWithWorld GCmdIstanbulRebuild(
+	TEXT("Istanbul.Rebuild"),
+	TEXT("Destroys and deterministically regenerates the procedural Istanbul scene from ATestSceneBuilder::Seed."),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (!World) return;
+		if (ATestSceneBuilder* Builder = Cast<ATestSceneBuilder>(UGameplayStatics::GetActorOfClass(World, ATestSceneBuilder::StaticClass())))
+		{
+			Builder->RebuildScene();
+		}
+	}));
+
+static FAutoConsoleCommandWithWorld GCmdIstanbulTeleportSlope(
+	TEXT("Istanbul.TeleportToSlope"),
+	TEXT("Teleports the player taxi to the base of the 17.6-deg Cihangir switchback / stop-sign slope."),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (!World) return;
+		if (APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0))
+		{
+			if (ATaxiPawn* Taxi = Cast<ATaxiPawn>(Pawn)) Taxi->ResetVehicle();
+			Pawn->SetActorLocationAndRotation(FVector(13500.0f, 4150.0f, 120.0f), FRotator(17.5f, 90.0f, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
+			UE_LOG(LogIstanbulTaxi, Log, TEXT("Istanbul.TeleportToSlope -> Teleported player to 17.6-deg Cihangir slope base."));
+		}
+	}));
+
+static FAutoConsoleCommandWithWorld GCmdIstanbulTeleportBosphorus(
+	TEXT("Istanbul.TeleportToBosphorus"),
+	TEXT("Teleports the player taxi to the Bosphorus Scenic Overlook / Coastal Quay ledge."),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (!World) return;
+		if (APawn* Pawn = UGameplayStatics::GetPlayerPawn(World, 0))
+		{
+			if (ATaxiPawn* Taxi = Cast<ATaxiPawn>(Pawn)) Taxi->ResetVehicle();
+			Pawn->SetActorLocationAndRotation(FVector(17200.0f, -650.0f, 45.0f), FRotator(0.0f, -25.0f, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
+			UE_LOG(LogIstanbulTaxi, Log, TEXT("Istanbul.TeleportToBosphorus -> Teleported player to Bosphorus Scenic Quay."));
+		}
+	}));
+
+static FAutoConsoleCommandWithWorld GCmdIstanbulToggleDebugSlope(
+	TEXT("Istanbul.ToggleDebugSlope"),
+	TEXT("Toggles continuous slope angle & grade % debug logging under the player taxi."),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		if (!World) return;
+		if (ATaxiPawn* Taxi = Cast<ATaxiPawn>(UGameplayStatics::GetPlayerPawn(World, 0)))
+		{
+			const bool bNewState = !Taxi->IsDebugSlopeTelemetryEnabled();
+			Taxi->SetDebugSlopeTelemetry(bNewState);
+			UE_LOG(LogIstanbulTaxi, Log, TEXT("Istanbul.ToggleDebugSlope -> %s (CurrentSlope=%.2f deg)"),
+				bNewState ? TEXT("ENABLED") : TEXT("DISABLED"), Taxi->GetCurrentSlopeAngleDegrees());
+		}
+	}));
 
 ATestSceneBuilder::ATestSceneBuilder()
 {
@@ -945,15 +1006,32 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			++SpawnedHISMInstanceCount;
 		}
 
-		// Sagging parabolic catenary utility & laundry cables crisscrossing the narrow upper street
-		FIstanbulMeshUtils::AppendCatenaryCable(CatenaryCableSection,
+		// Yellow-black alternating-band vertex-color bollard + sagging laundry lines / hanging street lanterns
+		FIstanbulMeshUtils::AppendStripedBollard(SidewalkSection, Origin + FVector(BX + 350.0f, 7090.0f, 1295.0f), 11.0f, 86.0f);
+		FIstanbulMeshUtils::AppendBackstreetLaundryOrLantern(CatenaryCableSection,
 			Origin + FVector(BX, 6800.0f, 2120.0f),
 			Origin + FVector(BX + 450.0f, 8400.0f, 2120.0f),
-			65.0f, 3.0f, 8, FLinearColor(0.03f, 0.03f, 0.04f));
+			65.0f, (b % 2 == 0), Rng);
+
+		// Sidewalk tea-garden café table & Istanbul street cat silhouette clusters
+		if (b % 2 == 1)
+		{
+			FIstanbulMeshUtils::AppendCafeTableAndCatCluster(SidewalkSection,
+				Origin + FVector(BX + 180.0f, 6920.0f, 1312.0f), 90.0f, Rng);
+		}
 
 		SpawnStreetLamp(FString::Printf(TEXT("UpperAlleyLamp_%d"), b),
 			Origin + FVector(BX - 520.0f, 7090.0f, 1305.0f), 90.0f);
 	}
+
+	// Coursed historic stone retaining wall with per-block vertex-color noise along the Old-Town Square & Galata climb
+	FIstanbulMeshUtils::AppendStoneWallWithVariation(SidewalkSection,
+		FTransform(FRotator(0.0f, 0.0f, 0.0f), Origin + FVector(12000.0f, 5880.0f, 320.0f)),
+		6400.0f, 480.0f, 65.0f, Rng);
+	FIstanbulMeshUtils::AppendCafeTableAndCatCluster(SidewalkSection,
+		Origin + FVector(14450.0f, 3450.0f, 18.0f), 0.0f, Rng);
+	FIstanbulMeshUtils::AppendCafeTableAndCatCluster(SidewalkSection,
+		Origin + FVector(15950.0f, 3450.0f, 18.0f), 180.0f, Rng);
 
 	// Commit procedural road, sidewalk, cobblestone, and catenary cable sections!
 	UMaterialInterface* ProcMat = FIstanbulMeshUtils::LoadVertexColorMaterialSafe();
@@ -1100,9 +1178,26 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		}
 	}
 
+	int32 CountTaxi = 0, CountBus = 0, CountDolmus = 0, CountVan = 0;
+	if (AIstanbulTrafficManager* TM = Cast<AIstanbulTrafficManager>(UGameplayStatics::GetActorOfClass(W, AIstanbulTrafficManager::StaticClass())))
+	{
+		for (const ATrafficVehicle* V : TM->GetSpawnedVehicles())
+		{
+			if (!V) continue;
+			switch (V->GetVehicleType())
+			{
+			case EIstanbulVehicleType::YellowTaxi:  ++CountTaxi;   break;
+			case EIstanbulVehicleType::IETTBus:     ++CountBus;    break;
+			case EIstanbulVehicleType::Dolmus:      ++CountDolmus; break;
+			case EIstanbulVehicleType::DeliveryVan: ++CountVan;    break;
+			}
+		}
+	}
+
 	UE_LOG(LogIstanbulTaxi, Log,
-		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d): RoadSegments=%d (Inclined=%d, GradeMin=%.1f deg, GradeMax=%.1f deg), Actors=%d, HISMInstances=%d, TrafficVehicles=%d."),
+		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d) Summary: Roads=%d | Slopes=%d (MinGrade=%.1f deg, MaxGrade=%.1f deg) | Vehicles=%d (YellowTaxi=%d, IETTBus=%d, Dolmus=%d, DeliveryVan=%d) | Props(Actors=%d, HISMInstances=%d, StreetLampPoints=%d)."),
 		Seed, RoadSegments.Num(), InclinedSegmentCount,
 		(InclinedSegmentCount > 0 ? MinSlopeDeg : 0.0f), MaxSlopeDeg,
-		SpawnedActorCount, SpawnedHISMInstanceCount, TrafficCount);
+		TrafficCount, CountTaxi, CountBus, CountDolmus, CountVan,
+		SpawnedActorCount, SpawnedHISMInstanceCount, StreetLampLightWorldPositions.Num());
 }
