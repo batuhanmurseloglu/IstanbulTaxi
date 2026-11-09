@@ -4,30 +4,30 @@
 #include "GameFramework/Actor.h"
 #include "IstanbulTrafficManager.generated.h"
 
+class UProceduralMeshComponent;
 class UStaticMeshComponent;
 class USoundBase;
 
+/**
+ * Canonical Istanbul vehicle visual archetypes (Task 2.1).
+ */
 UENUM(BlueprintType)
-enum class ETrafficVehicleType : uint8
+enum class EIstanbulVehicleType : uint8
 {
-	Sedan        UMETA(DisplayName = "Binek Otomobil"),
-	YellowTaxi   UMETA(DisplayName = "Sarı Taksi"),
-	Dolmus       UMETA(DisplayName = "Sarı/Mavi Dolmuş / Minibüs"),
-	IETTBus      UMETA(DisplayName = "İETT Belediye Otobüsü"),
-	DeliveryVan  UMETA(DisplayName = "Kargo / Panelvan")
+	YellowTaxi  UMETA(DisplayName = "Sarı Taksi (#F5C400)"),
+	IETTBus     UMETA(DisplayName = "İETT Belediye Otobüsü (#C8102E / Beyaz)"),
+	Dolmus      UMETA(DisplayName = "Sarı Minibüs / Dolmuş"),
+	DeliveryVan UMETA(DisplayName = "Kargo / Panelvan (Çift Sıra Park)")
 };
+
+using ETrafficVehicleType = EIstanbulVehicleType;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnTrafficHornHonked, AActor*, HonkingVehicle, FVector, WorldLocation, FString, ReasonText);
 
 /**
- * Lightweight C++ Istanbul AI Traffic Vehicle.
- * Moves along spline/waypoint loops across main boulevards and narrow side streets,
- * exhibiting authentic Istanbul behaviors:
- *  - Stop-and-go congestion (dur-kalk) & dynamic headway braking behind player or other AI
- *  - Dolmuş ad-hoc curb stops with blinking hazard lights (dörtlüler)
- *  - Aggressive nose-in lane changing between parallel lanes
- *  - Double-parked hazard mode in narrow side streets (requiring the player to carefully squeeze past)
- *  - Impatient horn honking (audio + visual indicator) when blocked
+ * Mid-poly procedural Istanbul AI Traffic Vehicle.
+ * Builds its entire body into a single-draw-call UProceduralMeshComponent section via
+ * BuildVisualMesh(EIstanbulVehicleType) using FIstanbulMeshUtils::AppendBeveledBox & AppendCylinder.
  */
 UCLASS()
 class ISTANBULTAXI_API ATrafficVehicle : public AActor
@@ -39,14 +39,17 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-	void InitializeTrafficVehicle(ETrafficVehicleType InType, const TArray<FVector>& InWaypoints,
+	/** Builds the mid-poly beveled procedural mesh for the specified Istanbul vehicle archetype. */
+	UFUNCTION(BlueprintCallable, Category = "Traffic|Visuals")
+	void BuildVisualMesh(EIstanbulVehicleType InType);
+
+	void InitializeTrafficVehicle(EIstanbulVehicleType InType, const TArray<FVector>& InWaypoints,
 		float InCruiseSpeedKmh, float InLateralOffsetCm, bool bInStationaryHazard = false, int32 StartWaypointIdx = 0);
 
-	/** Allows switching lanes dynamically by adjusting LateralOffsetCm. */
 	void SetTargetLateralOffset(float NewLateralOffsetCm) { TargetLateralOffsetCm = NewLateralOffsetCm; }
 
 	UFUNCTION(BlueprintPure, Category = "Traffic")
-	ETrafficVehicleType GetVehicleType() const { return VehicleType; }
+	EIstanbulVehicleType GetVehicleType() const { return VehicleType; }
 
 	UFUNCTION(BlueprintPure, Category = "Traffic")
 	bool IsHonkingNow() const { return HornVisualTimer > 0.0f; }
@@ -64,45 +67,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> Root;
 
+	/** Single-draw-call merged mid-poly beveled body mesh (hood, cabin, trunk, livery bands, lights). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> BodyMesh;
+	TObjectPtr<UProceduralMeshComponent> VehicleProcMesh;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> CabinMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> WindshieldMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> SideBandMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> FrontGrillMesh;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> RoofStripeMesh;
-
+	/** Rotating wheel cylinders. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TArray<TObjectPtr<UStaticMeshComponent>> WheelMeshes;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TArray<TObjectPtr<UStaticMeshComponent>> HubcapMeshes;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TArray<TObjectPtr<UStaticMeshComponent>> HeadlightMeshes;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TArray<TObjectPtr<UStaticMeshComponent>> TaillightMeshes;
-
+	/** Blinking hazard lamps toggled by timer for double-parked delivery vans and dolmuş stops. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TArray<TObjectPtr<UStaticMeshComponent>> HazardLampMeshes;
 
 private:
-	void BuildVisualsForType(ETrafficVehicleType InType);
 	void TintMesh(UStaticMeshComponent* Comp, const FLinearColor& Color);
 	void TriggerHorn(const FString& Reason);
 
-	ETrafficVehicleType VehicleType = ETrafficVehicleType::Sedan;
+	EIstanbulVehicleType VehicleType = EIstanbulVehicleType::YellowTaxi;
 	TArray<FVector> Waypoints;
 	int32 CurrentWaypointIdx = 0;
 
@@ -118,9 +99,11 @@ private:
 	float AdHocStopTimer = 0.0f;
 	float NextAdHocStopCooldown = 14.0f;
 
-	// Lane-change & impatience timers
+	// Deadlock recovery / lane-change / impatience timers
 	float LaneChangeCooldown = 9.0f;
 	float BlockedDuration = 0.0f;
+	float DeadlockTimer = 0.0f;
+	float ReverseEscapeTimer = 0.0f;
 	float HornCooldown = 0.0f;
 	float HornVisualTimer = 0.0f;
 	float HazardBlinkAccum = 0.0f;
@@ -138,7 +121,6 @@ class ISTANBULTAXI_API AIstanbulTrafficManager : public AActor
 public:
 	AIstanbulTrafficManager();
 
-	/** Spawns the full set of moving & double-parked Istanbul vehicles around Origin. */
 	void PopulateIstanbulTraffic(const FVector& Origin, const TArray<FVector>& BoulevardLoopRight,
 		const TArray<FVector>& BoulevardLoopLeft, const TArray<FVector>& SideStreetLoop);
 
