@@ -27,6 +27,21 @@ ATrafficVehicle::ATrafficVehicle()
 	CabinMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (CubeFinder.Succeeded()) CabinMesh->SetStaticMesh(CubeFinder.Object);
 
+	WindshieldMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WindshieldMesh"));
+	WindshieldMesh->SetupAttachment(Root);
+	WindshieldMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) WindshieldMesh->SetStaticMesh(CubeFinder.Object);
+
+	SideBandMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SideBandMesh"));
+	SideBandMesh->SetupAttachment(Root);
+	SideBandMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) SideBandMesh->SetStaticMesh(CubeFinder.Object);
+
+	FrontGrillMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FrontGrillMesh"));
+	FrontGrillMesh->SetupAttachment(Root);
+	FrontGrillMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) FrontGrillMesh->SetStaticMesh(CubeFinder.Object);
+
 	RoofStripeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RoofStripeMesh"));
 	RoofStripeMesh->SetupAttachment(Root);
 	RoofStripeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -37,14 +52,36 @@ ATrafficVehicle::ATrafficVehicle()
 		UStaticMeshComponent* W = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("Wheel_%d"), i));
 		W->SetupAttachment(Root);
 		W->SetRelativeRotation(FRotator(0.0f, 0.0f, 90.0f));
-		W->SetRelativeScale3D(FVector(0.62f, 0.62f, 0.22f));
+		W->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.24f));
 		W->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		if (CylFinder.Succeeded()) W->SetStaticMesh(CylFinder.Object);
 		WheelMeshes.Add(W);
+
+		UStaticMeshComponent* Hub = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("Hubcap_%d"), i));
+		Hub->SetupAttachment(W);
+		Hub->SetRelativeLocation(FVector(0.0f, 0.0f, (i % 2 == 0) ? -52.0f : 52.0f));
+		Hub->SetRelativeScale3D(FVector(0.58f, 0.58f, 0.12f));
+		Hub->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CylFinder.Succeeded()) Hub->SetStaticMesh(CylFinder.Object);
+		HubcapMeshes.Add(Hub);
 	}
 
 	for (int32 i = 0; i < 2; ++i)
 	{
+		UStaticMeshComponent* HL = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("Headlight_%d"), i));
+		HL->SetupAttachment(Root);
+		HL->SetRelativeScale3D(FVector(0.08f, 0.30f, 0.16f));
+		HL->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CubeFinder.Succeeded()) HL->SetStaticMesh(CubeFinder.Object);
+		HeadlightMeshes.Add(HL);
+
+		UStaticMeshComponent* TL = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("Taillight_%d"), i));
+		TL->SetupAttachment(Root);
+		TL->SetRelativeScale3D(FVector(0.08f, 0.32f, 0.16f));
+		TL->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CubeFinder.Succeeded()) TL->SetStaticMesh(CubeFinder.Object);
+		TaillightMeshes.Add(TL);
+
 		UStaticMeshComponent* H = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("HazardLamp_%d"), i));
 		H->SetupAttachment(Root);
 		H->SetRelativeScale3D(FVector(0.18f, 0.28f, 0.14f));
@@ -68,63 +105,128 @@ void ATrafficVehicle::TintMesh(UStaticMeshComponent* Comp, const FLinearColor& C
 void ATrafficVehicle::BuildVisualsForType(ETrafficVehicleType InType)
 {
 	VehicleType = InType;
-	float LengthM = 4.3f, WidthM = 1.78f, BodyH = 0.56f, CabinH = 0.50f;
+	float LengthM = 4.35f, WidthM = 1.78f, BodyH = 0.56f, CabinH = 0.50f;
 	FLinearColor BodyCol(0.72f, 0.75f, 0.78f);
-	FLinearColor CabinCol(0.15f, 0.18f, 0.22f);
+	FLinearColor CabinCol(0.72f, 0.75f, 0.78f);
+	FLinearColor GlassCol(0.08f, 0.11f, 0.15f);
+	FLinearColor BandCol(0.12f, 0.13f, 0.15f);
+	FLinearColor GrillCol(0.06f, 0.06f, 0.07f);
 	FLinearColor StripeCol(0.95f, 0.85f, 0.15f);
 	bool bShowStripe = false;
+	bool bShowBand = true;
 
 	switch (InType)
 	{
 	case ETrafficVehicleType::Sedan:
 	{
 		static const FLinearColor SedanPalette[5] = {
-			FLinearColor(0.82f, 0.84f, 0.88f), // White/Silver Egea/Megane
+			FLinearColor(0.84f, 0.86f, 0.90f), // White/Silver Egea/Megane
 			FLinearColor(0.14f, 0.16f, 0.20f), // Charcoal
-			FLinearColor(0.08f, 0.22f, 0.48f), // Bosphorus Blue
-			FLinearColor(0.55f, 0.10f, 0.10f), // Burgundy
+			FLinearColor(0.08f, 0.24f, 0.52f), // Bosphorus Blue
+			FLinearColor(0.58f, 0.10f, 0.10f), // Burgundy
 			FLinearColor(0.32f, 0.34f, 0.36f)  // Titanium Grey
 		};
 		BodyCol = SedanPalette[FMath::RandRange(0, 4)];
+		CabinCol = BodyCol * 0.95f;
+		BandCol = FLinearColor(0.10f, 0.11f, 0.12f);
 		break;
 	}
 	case ETrafficVehicleType::YellowTaxi:
-		BodyCol = FLinearColor(0.95f, 0.70f, 0.02f);
-		CabinCol = FLinearColor(0.85f, 0.62f, 0.02f);
+		BodyCol   = FLinearColor(0.96f, 0.70f, 0.02f); // Iconic Istanbul Sarı Taksi
+		CabinCol  = FLinearColor(0.92f, 0.66f, 0.02f);
+		BandCol   = FLinearColor(0.05f, 0.05f, 0.06f); // Black checkered taxi waist stripe
+		StripeCol = FLinearColor(1.00f, 0.92f, 0.18f); // Glowing TAKSİ roof sign
 		bShowStripe = true;
 		break;
 	case ETrafficVehicleType::Dolmus:
-		LengthM = 5.4f; WidthM = 2.02f; BodyH = 0.85f; CabinH = 0.72f;
-		BodyCol = FLinearColor(0.92f, 0.86f, 0.62f); // Cream/Yellow Minibüs
-		CabinCol = FLinearColor(0.12f, 0.45f, 0.78f); // Iconic Istanbul Mavi/Turkuaz Minibüs stripe
-		StripeCol = FLinearColor(0.08f, 0.38f, 0.75f);
+		LengthM = 5.6f; WidthM = 2.05f; BodyH = 0.88f; CabinH = 0.78f;
+		BodyCol   = FLinearColor(0.94f, 0.88f, 0.60f); // Classic Cream/Yellow Minibüs lower hull
+		CabinCol  = FLinearColor(0.94f, 0.88f, 0.60f);
+		BandCol   = FLinearColor(0.08f, 0.48f, 0.82f); // Iconic Turquoise/Blue Dolmuş beltline stripe
+		StripeCol = FLinearColor(0.98f, 0.65f, 0.05f); // Illuminated line sign ("BEŞİKTAŞ - HARBİYE")
 		bShowStripe = true;
 		break;
 	case ETrafficVehicleType::IETTBus:
-		LengthM = 11.2f; WidthM = 2.48f; BodyH = 1.35f; CabinH = 1.15f;
-		BodyCol = FLinearColor(0.95f, 0.74f, 0.04f); // Iconic Yellow/Red İETT Bus
-		CabinCol = FLinearColor(0.78f, 0.12f, 0.10f);
-		StripeCol = FLinearColor(0.90f, 0.92f, 0.95f);
+		LengthM = 11.4f; WidthM = 2.50f; BodyH = 1.38f; CabinH = 1.18f;
+		BodyCol   = FLinearColor(0.78f, 0.10f, 0.10f); // Classic Istanbul Red/White İETT Bus lower body
+		BandCol   = FLinearColor(0.92f, 0.92f, 0.94f); // Crisp White İETT mid-band
+		CabinCol  = FLinearColor(0.82f, 0.12f, 0.10f); // Red upper roof crown
+		GrillCol  = FLinearColor(0.98f, 0.58f, 0.04f); // Glowing Orange LED Route Matrix on forehead
+		StripeCol = FLinearColor(0.88f, 0.90f, 0.92f); // Rooftop A/C Pod
 		bShowStripe = true;
 		break;
 	case ETrafficVehicleType::DeliveryVan:
-		LengthM = 5.1f; WidthM = 1.96f; BodyH = 0.95f; CabinH = 0.82f;
-		BodyCol = FLinearColor(0.88f, 0.90f, 0.92f);
-		CabinCol = FLinearColor(0.20f, 0.22f, 0.26f);
+		LengthM = 5.4f; WidthM = 2.04f; BodyH = 0.78f; CabinH = 1.25f;
+		BodyCol   = FLinearColor(0.22f, 0.24f, 0.27f); // Heavy-duty truck chassis & cab base
+		CabinCol  = FLinearColor(0.90f, 0.92f, 0.94f); // High cube rear frigo cargo box (Kasa)
+		BandCol   = FLinearColor(0.88f, 0.42f, 0.04f); // Logistics orange reflective strip
 		break;
 	}
 
-	BodyMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 32.0f + BodyH * 50.0f));
+	// Main lower body
+	BodyMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 34.0f + BodyH * 50.0f));
 	BodyMesh->SetRelativeScale3D(FVector(LengthM, WidthM, BodyH));
 	TintMesh(BodyMesh, BodyCol);
 
-	CabinMesh->SetRelativeLocation(FVector(-LengthM * 5.0f, 0.0f, 32.0f + (BodyH + CabinH * 0.48f) * 100.0f));
-	CabinMesh->SetRelativeScale3D(FVector(LengthM * 0.58f, WidthM * 0.88f, CabinH));
-	TintMesh(CabinMesh, CabinCol);
+	if (InType == ETrafficVehicleType::DeliveryVan)
+	{
+		// Distinct Box-Truck / Kamyonet silhouette: tall rear cargo container + lower forward driver cab
+		CabinMesh->SetRelativeLocation(FVector(-LengthM * 14.0f, 0.0f, 36.0f + (BodyH + CabinH * 0.48f) * 100.0f));
+		CabinMesh->SetRelativeScale3D(FVector(LengthM * 0.68f, WidthM * 0.98f, CabinH));
+		TintMesh(CabinMesh, CabinCol);
 
+		WindshieldMesh->SetRelativeLocation(FVector(LengthM * 30.0f, 0.0f, 36.0f + (BodyH + 0.35f) * 100.0f));
+		WindshieldMesh->SetRelativeScale3D(FVector(LengthM * 0.26f, WidthM * 0.90f, 0.68f));
+		TintMesh(WindshieldMesh, GlassCol);
+
+		FrontGrillMesh->SetRelativeLocation(FVector(LengthM * 50.0f + 3.0f, 0.0f, 52.0f));
+		FrontGrillMesh->SetRelativeScale3D(FVector(0.08f, WidthM * 0.72f, 0.34f));
+		TintMesh(FrontGrillMesh, GrillCol);
+	}
+	else if (InType == ETrafficVehicleType::IETTBus || InType == ETrafficVehicleType::Dolmus)
+	{
+		// Full-length transit coach greenhouse + dark panoramic window band + front route LED display
+		CabinMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 34.0f + (BodyH + CabinH * 0.48f) * 100.0f));
+		CabinMesh->SetRelativeScale3D(FVector(LengthM * 0.96f, WidthM * 0.96f, CabinH));
+		TintMesh(CabinMesh, CabinCol);
+
+		WindshieldMesh->SetRelativeLocation(FVector(2.0f, 0.0f, 36.0f + (BodyH + CabinH * 0.45f) * 100.0f));
+		WindshieldMesh->SetRelativeScale3D(FVector(LengthM * 0.98f, WidthM * 0.99f, CabinH * 0.56f));
+		TintMesh(WindshieldMesh, GlassCol);
+
+		// Glowing orange route matrix on the forehead of İETT buses & Dolmuş
+		FrontGrillMesh->SetRelativeLocation(FVector(LengthM * 49.0f + 4.0f, 0.0f, 36.0f + (BodyH + CabinH * 0.85f) * 100.0f));
+		FrontGrillMesh->SetRelativeScale3D(FVector(0.06f, WidthM * 0.64f, 0.22f));
+		TintMesh(FrontGrillMesh, FLinearColor(1.0f, 0.55f, 0.02f));
+	}
+	else
+	{
+		// 3-Box Sedan / Sarı Taksi profile with recessed dark glass wrap & front radiator grille
+		CabinMesh->SetRelativeLocation(FVector(-LengthM * 5.0f, 0.0f, 34.0f + (BodyH + CabinH * 0.48f) * 100.0f));
+		CabinMesh->SetRelativeScale3D(FVector(LengthM * 0.56f, WidthM * 0.86f, CabinH));
+		TintMesh(CabinMesh, CabinCol);
+
+		WindshieldMesh->SetRelativeLocation(FVector(-LengthM * 5.0f, 0.0f, 34.0f + (BodyH + CabinH * 0.44f) * 100.0f));
+		WindshieldMesh->SetRelativeScale3D(FVector(LengthM * 0.59f, WidthM * 0.89f, CabinH * 0.68f));
+		TintMesh(WindshieldMesh, GlassCol);
+
+		FrontGrillMesh->SetRelativeLocation(FVector(LengthM * 50.0f + 3.0f, 0.0f, 48.0f));
+		FrontGrillMesh->SetRelativeScale3D(FVector(0.08f, WidthM * 0.62f, 0.24f));
+		TintMesh(FrontGrillMesh, GrillCol);
+	}
+
+	// Side Livery Waist Band (Black taxi checker, Turquoise Dolmuş belt, White İETT stripe, or Logistics stripe)
+	SideBandMesh->SetVisibility(bShowBand);
+	SideBandMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 34.0f + BodyH * 72.0f));
+	SideBandMesh->SetRelativeScale3D(FVector(LengthM * 1.005f, WidthM * 1.02f, 0.14f));
+	TintMesh(SideBandMesh, BandCol);
+
+	// Rooftop Sign / A/C Pod
 	RoofStripeMesh->SetVisibility(bShowStripe);
-	RoofStripeMesh->SetRelativeLocation(FVector(0.0f, 0.0f, 35.0f + (BodyH + CabinH) * 100.0f));
-	RoofStripeMesh->SetRelativeScale3D(FVector(0.45f, WidthM * 0.5f, 0.18f));
+	const float RoofZ = 36.0f + (BodyH + CabinH) * 100.0f;
+	const float PodLen = (InType == ETrafficVehicleType::IETTBus) ? 3.2f : 0.42f;
+	RoofStripeMesh->SetRelativeLocation(FVector((InType == ETrafficVehicleType::Dolmus) ? LengthM * 32.0f : 0.0f, 0.0f, RoofZ));
+	RoofStripeMesh->SetRelativeScale3D(FVector(PodLen, WidthM * 0.48f, 0.20f));
 	TintMesh(RoofStripeMesh, StripeCol);
 
 	const float AxleX = LengthM * 32.0f;
@@ -138,16 +240,32 @@ void ATrafficVehicle::BuildVisualsForType(ETrafficVehicleType InType)
 	for (int32 i = 0; i < 4; ++i)
 	{
 		WheelMeshes[i]->SetRelativeLocation(WPos[i]);
-		TintMesh(WheelMeshes[i], FLinearColor(0.06f, 0.06f, 0.07f));
+		TintMesh(WheelMeshes[i], FLinearColor(0.05f, 0.05f, 0.06f));
+		if (HubcapMeshes.IsValidIndex(i))
+		{
+			TintMesh(HubcapMeshes[i], FLinearColor(0.68f, 0.72f, 0.76f));
+		}
 	}
 
-	// Rear/Front hazard indicator bars
-	if (HazardLampMeshes.Num() >= 2)
+	// Front Headlights, Rear Red Taillights & Blinking Orange Hazard Bars
+	for (int32 i = 0; i < 2; ++i)
 	{
-		HazardLampMeshes[0]->SetRelativeLocation(FVector(-LengthM * 50.0f - 4.0f, -WidthM * 36.0f, 55.0f));
-		HazardLampMeshes[1]->SetRelativeLocation(FVector(-LengthM * 50.0f - 4.0f,  WidthM * 36.0f, 55.0f));
-		TintMesh(HazardLampMeshes[0], FLinearColor(1.0f, 0.45f, 0.0f));
-		TintMesh(HazardLampMeshes[1], FLinearColor(1.0f, 0.45f, 0.0f));
+		const float SideSign = (i == 0) ? -1.0f : 1.0f;
+		if (HeadlightMeshes.IsValidIndex(i))
+		{
+			HeadlightMeshes[i]->SetRelativeLocation(FVector(LengthM * 50.0f + 4.0f, SideSign * WidthM * 36.0f, 54.0f));
+			TintMesh(HeadlightMeshes[i], FLinearColor(1.0f, 0.95f, 0.75f));
+		}
+		if (TaillightMeshes.IsValidIndex(i))
+		{
+			TaillightMeshes[i]->SetRelativeLocation(FVector(-LengthM * 50.0f - 4.0f, SideSign * WidthM * 36.0f, 56.0f));
+			TintMesh(TaillightMeshes[i], FLinearColor(0.92f, 0.08f, 0.06f));
+		}
+		if (HazardLampMeshes.IsValidIndex(i))
+		{
+			HazardLampMeshes[i]->SetRelativeLocation(FVector(-LengthM * 50.0f - 5.0f, SideSign * WidthM * 36.0f, 70.0f));
+			TintMesh(HazardLampMeshes[i], FLinearColor(1.0f, 0.48f, 0.0f));
+		}
 	}
 }
 

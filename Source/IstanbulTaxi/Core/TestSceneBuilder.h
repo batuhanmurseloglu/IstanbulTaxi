@@ -52,6 +52,9 @@ private:
 	void SpawnParkedCurbCar(const FString& Label, const FVector& Location, const FRotator& Rotation, const FLinearColor& BodyColor);
 	void SpawnIETTBusStop(const FString& Label, const FVector& Location, float YawDeg);
 	void SpawnStreetLamp(const FString& Label, const FVector& Location, float YawDeg);
+	void SpawnHistoricalStoneWall(const FString& Label, const FVector& CenterLocation, const FRotator& Rotation, float LengthM, float HeightM);
+	void SpawnGalataTowerLandmark(const FVector& RidgeBase);
+	void SpawnBosphorusScenicOverlook(const FVector& Origin);
 	void SpawnDetailedMosqueComplex(const FVector& HilltopBase);
 	void SpawnHGSBridgeCanopy(const FVector& GateCenter);
 

@@ -1,6 +1,7 @@
 #include "Core/TestSceneBuilder.h"
 #include "Environment/TimeOfDayActor.h"
 #include "Environment/TimeOfDaySubsystem.h"
+#include "Environment/BosphorusWaterVolume.h"
 #include "Taximeter/TollGateVolume.h"
 #include "Audio/DistrictAmbienceVolume.h"
 #include "Audio/DistrictAmbienceDataAsset.h"
@@ -183,13 +184,97 @@ void ATestSceneBuilder::SpawnStreetLamp(const FString& Label, const FVector& Loc
 {
 	const FRotator Rot(0.0f, YawDeg, 0.0f);
 	const FVector Fwd = Rot.Vector();
+	// Ornate cast-iron base plinth + tapered pole + curved bracket + warm sodium lantern head
+	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), Label + TEXT("_Base"),
+		Location + FVector(0.0f, 0.0f, 45.0f), FRotator::ZeroRotator,
+		FVector(0.34f, 0.34f, 0.9f), FLinearColor(0.14f, 0.16f, 0.18f), false);
 	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), Label + TEXT("_Pole"),
 		Location + FVector(0.0f, 0.0f, 380.0f), FRotator::ZeroRotator,
-		FVector(0.18f, 0.18f, 7.6f), FLinearColor(0.22f, 0.24f, 0.27f), false);
+		FVector(0.18f, 0.18f, 7.6f), FLinearColor(0.20f, 0.22f, 0.25f), false);
 	SpawnBox(Label + TEXT("_Arm"), Location + Fwd * 95.0f + FVector(0.0f, 0.0f, 745.0f),
-		FVector(1.9f, 0.16f, 0.14f), FLinearColor(0.22f, 0.24f, 0.27f), false, Rot);
+		FVector(1.9f, 0.16f, 0.14f), FLinearColor(0.20f, 0.22f, 0.25f), false, Rot);
 	SpawnBox(Label + TEXT("_Bulb"), Location + Fwd * 175.0f + FVector(0.0f, 0.0f, 732.0f),
-		FVector(0.45f, 0.32f, 0.12f), FLinearColor(1.0f, 0.85f, 0.45f), false, Rot);
+		FVector(0.48f, 0.34f, 0.14f), FLinearColor(1.0f, 0.85f, 0.45f), false, Rot);
+}
+
+void ATestSceneBuilder::SpawnHistoricalStoneWall(const FString& Label, const FVector& CenterLocation,
+	const FRotator& Rotation, float LengthM, float HeightM)
+{
+	// Byzantine / Ottoman "Almaşık" stone & brick coursed retaining wall flanking steep Istanbul backstreets
+	const FLinearColor LimestoneCol(0.52f, 0.49f, 0.44f);
+	const FLinearColor KhorasanBrickCol(0.58f, 0.24f, 0.18f);
+	const FLinearColor CopingStoneCol(0.64f, 0.61f, 0.56f);
+
+	SpawnBox(Label + TEXT("_StoneCore"), CenterLocation,
+		FVector(LengthM, 0.55f, HeightM), LimestoneCol, true, Rotation);
+
+	// 2 Horizontal Khorasan brick courses (Horasan tuğla hatılları)
+	const FVector UpVec = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Z);
+	SpawnBox(Label + TEXT("_BrickBand1"), CenterLocation - UpVec * (HeightM * 18.0f),
+		FVector(LengthM * 1.002f, 0.59f, 0.18f), KhorasanBrickCol, false, Rotation);
+	SpawnBox(Label + TEXT("_BrickBand2"), CenterLocation + UpVec * (HeightM * 22.0f),
+		FVector(LengthM * 1.002f, 0.59f, 0.18f), KhorasanBrickCol, false, Rotation);
+
+	// Top weathered stone coping ledge
+	SpawnBox(Label + TEXT("_Coping"), CenterLocation + UpVec * (HeightM * 50.0f + 10.0f),
+		FVector(LengthM * 1.01f, 0.68f, 0.20f), CopingStoneCol, false, Rotation);
+}
+
+void ATestSceneBuilder::SpawnGalataTowerLandmark(const FVector& RidgeBase)
+{
+	const FLinearColor GenoeseStone(0.62f, 0.57f, 0.49f);
+	const FLinearColor LeadConeCol(0.28f, 0.32f, 0.38f);
+
+	// Iconic cylindrical Genoese stone shaft of Galata Kulesi
+	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Galata_MainShaft"),
+		RidgeBase + FVector(0.0f, 0.0f, 1850.0f), FRotator::ZeroRotator,
+		FVector(14.5f, 14.5f, 37.0f), GenoeseStone, true);
+
+	// Decorative stone belt moldings
+	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Galata_Belt1"),
+		RidgeBase + FVector(0.0f, 0.0f, 2400.0f), FRotator::ZeroRotator,
+		FVector(15.2f, 15.2f, 0.6f), GenoeseStone * 1.1f, false);
+
+	// Corbelled Observation Balcony (Seyir Terası)
+	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Galata_Balcony"),
+		RidgeBase + FVector(0.0f, 0.0f, 3650.0f), FRotator::ZeroRotator,
+		FVector(16.8f, 16.8f, 1.1f), FLinearColor(0.76f, 0.72f, 0.64f), false);
+
+	// Warm-lit arched arcade level under the roof cone
+	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Galata_Arcade"),
+		RidgeBase + FVector(0.0f, 0.0f, 3920.0f), FRotator::ZeroRotator,
+		FVector(13.8f, 13.8f, 4.5f), FLinearColor(0.95f, 0.78f, 0.38f), false);
+
+	// Iconic Conical Lead Roof Cap (Külah) + Finial Alem
+	SpawnShape(TEXT("/Engine/BasicShapes/Cone.Cone"), TEXT("Galata_ConicalRoof"),
+		RidgeBase + FVector(0.0f, 0.0f, 4850.0f), FRotator::ZeroRotator,
+		FVector(15.0f, 15.0f, 15.0f), LeadConeCol, false);
+}
+
+void ATestSceneBuilder::SpawnBosphorusScenicOverlook(const FVector& Origin)
+{
+	// Dedicated Bosphorus Coastal Ledge & Scenic Overlook Terrace (Sahil Kordonu & Boğaz Seyir Terası)
+	// extending out toward the Bosphorus between X = +80m and X = +210m so the player has a clear view of the sea & bridge
+	const FLinearColor GraniteCol(0.46f, 0.47f, 0.49f);
+	const FLinearColor IronRailCol(0.12f, 0.14f, 0.16f);
+
+	// Seafront stone seawall & overhanging scenic viewing deck
+	SpawnBox(TEXT("Overlook_Seawall"), Origin + FVector(15000.0f, -1620.0f, -15.0f),
+		FVector(420.0f, 0.8f, 0.85f), FLinearColor(0.34f, 0.35f, 0.37f), true);
+	SpawnBox(TEXT("Overlook_BelvedereDeck"), Origin + FVector(18500.0f, -1820.0f, 14.0f),
+		FVector(48.0f, 6.5f, 0.28f), GraniteCol, true);
+
+	// Continuous low wrought-iron Bosphorus cornice railing (keeps the horizon & water completely unobstructed from the taxi!)
+	SpawnBox(TEXT("Overlook_TopRail"), Origin + FVector(15000.0f, -1590.0f, 82.0f),
+		FVector(360.0f, 0.08f, 0.06f), IronRailCol, false);
+
+	// Seaside promenade wooden benches & cast-iron bollards facing Kız Kulesi and the Bosphorus Bridge
+	for (int32 i = 0; i < 8; ++i)
+	{
+		const float BX = 6500.0f + i * 2400.0f;
+		SpawnBox(FString::Printf(TEXT("Overlook_Bench_%d"), i), Origin + FVector(BX, -1480.0f, 45.0f),
+			FVector(2.2f, 0.55f, 0.45f), FLinearColor(0.45f, 0.26f, 0.12f), false);
+	}
 }
 
 void ATestSceneBuilder::SpawnDetailedMosqueComplex(const FVector& HilltopBase)
@@ -262,9 +347,10 @@ void ATestSceneBuilder::SpawnHGSBridgeCanopy(const FVector& GateCenter)
 	SpawnBox(TEXT("HGS_SignStrip"), GateCenter + FVector(-165.0f, 0.0f, 680.0f),
 		FVector(0.15f, 24.5f, 0.75f), FLinearColor(0.98f, 0.52f, 0.04f), false);
 
-	// Iconic 15 Temmuz Bosphorus Bridge Red Suspension Towers rising further ahead (+260m)
+	// Iconic 15 Temmuz Bosphorus Bridge Red Suspension Towers + Catenary Main Cables & Vertical Suspenders ahead (+260m)
 	const FVector BridgeTowerPos = GateCenter + FVector(8500.0f, 0.0f, 0.0f);
-	const FLinearColor BridgeRed(0.72f, 0.14f, 0.12f);
+	const FLinearColor BridgeRed(0.76f, 0.14f, 0.12f);
+	const FLinearColor CableSteel(0.72f, 0.75f, 0.80f);
 	SpawnBox(TEXT("BosphorusBridge_TowerL"), BridgeTowerPos + FVector(0.0f, -1350.0f, 3200.0f),
 		FVector(3.8f, 3.8f, 64.0f), BridgeRed, true);
 	SpawnBox(TEXT("BosphorusBridge_TowerR"), BridgeTowerPos + FVector(0.0f,  1350.0f, 3200.0f),
@@ -273,6 +359,27 @@ void ATestSceneBuilder::SpawnHGSBridgeCanopy(const FVector& GateCenter)
 		FVector(2.6f, 27.0f, 2.4f), BridgeRed, false);
 	SpawnBox(TEXT("BosphorusBridge_CrossBeam2"), BridgeTowerPos + FVector(0.0f, 0.0f, 5400.0f),
 		FVector(2.6f, 27.0f, 2.4f), BridgeRed, false);
+
+	// Sloped main suspension cables + vertical suspender hangers
+	for (int32 Side = -1; Side <= 1; Side += 2)
+	{
+		const float CableY = Side * 1350.0f;
+		SpawnBox(FString::Printf(TEXT("Bridge_MainCableBack_%d"), Side),
+			BridgeTowerPos + FVector(-3600.0f, CableY, 3100.0f),
+			FVector(82.0f, 0.45f, 0.45f), CableSteel, false, FRotator(36.0f, 0.0f, 0.0f));
+		SpawnBox(FString::Printf(TEXT("Bridge_MainCableSpan_%d"), Side),
+			BridgeTowerPos + FVector(3800.0f, CableY, 3400.0f),
+			FVector(86.0f, 0.45f, 0.45f), CableSteel, false, FRotator(-32.0f, 0.0f, 0.0f));
+
+		for (int32 h = 1; h <= 5; ++h)
+		{
+			const float HX = -h * 1100.0f;
+			const float HHeightM = FMath::Max(8.0f, 52.0f - h * 8.5f);
+			SpawnBox(FString::Printf(TEXT("Bridge_Hanger_%d_%d"), Side, h),
+				BridgeTowerPos + FVector(HX, CableY, HHeightM * 50.0f),
+				FVector(0.12f, 0.12f, HHeightM), CableSteel, false);
+		}
+	}
 }
 
 void ATestSceneBuilder::BuildPrototypeScene()
@@ -417,8 +524,23 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		{
 			SpawnStreetLamp(FString::Printf(TEXT("Lamp_Sea_%d"), i),  Origin + FVector(X, -1180.0f, 20.0f),  90.0f);
 			SpawnStreetLamp(FString::Printf(TEXT("Lamp_City_%d"), i), Origin + FVector(X,  1180.0f, 20.0f), -90.0f);
+
+			// Overhead T1 Tramway catenary wire & cross-street support cable over the boulevard
+			if (X >= 0.0f && X <= 18000.0f)
+			{
+				SpawnBox(FString::Printf(TEXT("Tram_CrossSpanCable_%d"), i),
+					Origin + FVector(X, 0.0f, 680.0f),
+					FVector(0.05f, 23.6f, 0.05f), FLinearColor(0.05f, 0.05f, 0.06f), false);
+			}
 		}
 	}
+
+	// Continuous T1 Tramway overhead copper contact wire along the median
+	SpawnBox(TEXT("Tram_ContactWire"), Origin + FVector(8000.0f, -20.0f, 675.0f),
+		FVector(180.0f, 0.05f, 0.05f), FLinearColor(0.08f, 0.08f, 0.09f), false);
+
+	// Bosphorus Scenic Overlook Ledge & Corniche along the seafront
+	SpawnBosphorusScenicOverlook(Origin);
 
 	// Two İETT Bus Stops (Eminönü İskele Durağı at +25m & Kabataş Durağı at +155m)
 	SpawnIETTBusStop(TEXT("IETT_Stop_Eminonu"), Origin + FVector(2500.0f, 1320.0f, 22.0f), -90.0f);
@@ -457,6 +579,13 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	// 3) Steep Downhill Narrow Cobblestone Alley (Beşiktaş / Tophane Yokuşu Aşağı, ~12° grade): X = +205m, Y = +76m -> +11m, Z = +1180cm -> 0
 	SpawnBox(TEXT("Cobble_DownhillRamp"), Origin + FVector(20500.0f, 4350.0f, 570.0f),
 		FVector(69.5f, 8.8f, 0.45f), CobbleCol, true, FRotator(12.0f, -90.0f, 0.0f), TEXT("Surface_Cobblestone"));
+
+	// Historical Byzantine/Ottoman Stone Retaining Walls (Almaşık Taş İstinat Duvarları) flanking the steep hill alleys
+	SpawnHistoricalStoneWall(TEXT("HistWall_Uphill_Left"),    Origin + FVector(3010.0f,  4350.0f, 710.0f), FRotator(12.0f,  90.0f, 0.0f), 64.0f, 2.8f);
+	SpawnHistoricalStoneWall(TEXT("HistWall_Uphill_Right"),   Origin + FVector(3990.0f,  4350.0f, 710.0f), FRotator(12.0f,  90.0f, 0.0f), 64.0f, 2.8f);
+	SpawnHistoricalStoneWall(TEXT("HistWall_Downhill_Left"),  Origin + FVector(20010.0f, 4350.0f, 710.0f), FRotator(12.0f, -90.0f, 0.0f), 64.0f, 2.8f);
+	SpawnHistoricalStoneWall(TEXT("HistWall_Downhill_Right"), Origin + FVector(20990.0f, 4350.0f, 710.0f), FRotator(12.0f, -90.0f, 0.0f), 64.0f, 2.8f);
+	SpawnHistoricalStoneWall(TEXT("HistWall_RidgeTerrace"),   Origin + FVector(12000.0f, 5420.0f, 920.0f), FRotator::ZeroRotator,         150.0f, 5.2f);
 
 	// High narrow curbstones along the Upper Historic Street (Z = 1180cm + curb height)
 	SpawnBox(TEXT("UpperCurb_South"), Origin + FVector(12000.0f, 7040.0f, 1192.0f),
@@ -519,10 +648,15 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			Origin + FVector(BX, 7110.0f, 1225.0f), FRotator::ZeroRotator,
 			FVector(0.22f, 0.22f, 0.85f), (b % 2 == 0) ? FLinearColor(0.96f, 0.72f, 0.02f) : FLinearColor(0.08f, 0.08f, 0.09f), true);
 
-		// Overhead tangled electrical cables spanning across the narrow upper street
+		// Overhead tangled electrical cables & diagonal crisscrossing utility lines across the narrow upper street
 		SpawnBox(FString::Printf(TEXT("OverheadCable_%d"), b),
 			Origin + FVector(BX, 7600.0f, 1940.0f),
 			FVector(0.05f, 16.0f, 0.05f), FLinearColor(0.03f, 0.03f, 0.03f), false);
+		SpawnBox(FString::Printf(TEXT("OverheadCrisscross_%d"), b),
+			Origin + FVector(BX + 450.0f, 7600.0f, 1985.0f),
+			FVector(0.05f, 17.5f, 0.05f), FLinearColor(0.04f, 0.04f, 0.05f), false, FRotator(0.0f, (b % 2 == 0) ? 24.0f : -24.0f, 0.0f));
+		SpawnStreetLamp(FString::Printf(TEXT("UpperAlleyLamp_%d"), b),
+			Origin + FVector(BX - 520.0f, 7090.0f, 1195.0f), 90.0f);
 	}
 
 	// Cars parked half-on-the-sidewalk (Kaldırıma yarı çıkmış park etmiş araçlar, tilted 9° Roll) in the narrow streets
@@ -532,10 +666,13 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	SpawnParkedCurbCar(TEXT("ParkedCar_Upper3"),  Origin + FVector(15600.0f, 7140.0f, 1195.0f), FRotator(0.0f,  0.0f, -9.0f), FLinearColor(0.82f, 0.82f, 0.80f));
 
 	// =========================================================================
-	// 4. HILLTOP MOSQUE SILHOUETTE, BOSPHORUS WATER & AUDIO ZONES
+	// 4. HILLTOP MOSQUE SILHOUETTE, GALATA TOWER, BOSPHORUS WATER & AUDIO ZONES
 	// =========================================================================
 	const FVector MosqueHillPos = Origin + FVector(11800.0f, 10600.0f, 1180.0f);
 	SpawnDetailedMosqueComplex(MosqueHillPos);
+
+	// Iconic Galata Tower (Galata Kulesi) crowning the western ridge at the top of the Cihangir/Galata climb
+	SpawnGalataTowerLandmark(Origin + FVector(3500.0f, 9600.0f, 1180.0f));
 
 	if (!UGameplayStatics::GetActorOfClass(W, AMosqueActor::StaticClass()))
 	{
@@ -603,9 +740,11 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			Shore->ShorelineSpline->AddSplinePoint(Origin + FVector(38000.0f, -1650.0f, 0.0f), ESplineCoordinateSpace::World);
 			Shore->ShorelineSpline->UpdateSpline();
 		}
-		// Bosphorus Sea surface + Asian Shore silhouette across the strait
-		SpawnBox(TEXT("Bosphorus_SeaWater"), Origin + FVector(17000.0f, -7500.0f, -45.0f),
-			FVector(460.0f, 115.0f, 0.3f), FLinearColor(0.02f, 0.14f, 0.32f), false);
+	}
+
+	if (!UGameplayStatics::GetActorOfClass(W, ABosphorusWaterVolume::StaticClass()))
+	{
+		W->SpawnActor<ABosphorusWaterVolume>(Origin, FRotator::ZeroRotator, SpawnParams);
 	}
 
 	// =========================================================================

@@ -119,10 +119,28 @@ protected:
 	TObjectPtr<UStaticMeshComponent> PlaceholderCabin;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TObjectPtr<UStaticMeshComponent> PlaceholderWindshield;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TObjectPtr<UStaticMeshComponent> PlaceholderSideBand;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TObjectPtr<UStaticMeshComponent> PlaceholderFrontGrille;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
 	TObjectPtr<UStaticMeshComponent> PlaceholderRoofSign;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TArray<TObjectPtr<UStaticMeshComponent>> PlaceholderHeadlights;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TArray<TObjectPtr<UStaticMeshComponent>> PlaceholderTaillights;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
 	TArray<TObjectPtr<UStaticMeshComponent>> PlaceholderWheels;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TArray<TObjectPtr<UStaticMeshComponent>> PlaceholderHubcaps;
 
 	// ---- Input ----
 	UPROPERTY(EditDefaultsOnly, Category = "Input")

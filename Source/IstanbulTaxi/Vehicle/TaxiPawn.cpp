@@ -67,23 +67,64 @@ ATaxiPawn::ATaxiPawn()
 	PlaceholderChassis = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderChassis"));
 	PlaceholderChassis->SetupAttachment(GetMesh());
 	PlaceholderChassis->SetRelativeLocation(FVector(0.0f, 0.0f, 52.0f));
-	PlaceholderChassis->SetRelativeScale3D(FVector(4.4f, 1.8f, 0.55f)); // ~4.4m x 1.8m sedan body
+	PlaceholderChassis->SetRelativeScale3D(FVector(4.45f, 1.80f, 0.54f)); // ~4.45m x 1.80m Egea sedan body
 	PlaceholderChassis->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (CubeFinder.Succeeded()) PlaceholderChassis->SetStaticMesh(CubeFinder.Object);
 
 	PlaceholderCabin = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderCabin"));
-	PlaceholderCabin->SetupAttachment(GetMesh());
-	PlaceholderCabin->SetRelativeLocation(FVector(-25.0f, 0.0f, 102.0f));
-	PlaceholderCabin->SetRelativeScale3D(FVector(2.2f, 1.55f, 0.52f));
+	PlaceholderCabin->SetupAttachment(PlaceholderChassis);
+	PlaceholderCabin->SetRelativeLocation(FVector(-5.0f, 0.0f, 88.0f));
+	PlaceholderCabin->SetRelativeScale3D(FVector(0.54f, 0.86f, 0.92f));
 	PlaceholderCabin->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (CubeFinder.Succeeded()) PlaceholderCabin->SetStaticMesh(CubeFinder.Object);
 
+	PlaceholderWindshield = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderWindshield"));
+	PlaceholderWindshield->SetupAttachment(PlaceholderChassis);
+	PlaceholderWindshield->SetRelativeLocation(FVector(-5.0f, 0.0f, 84.0f));
+	PlaceholderWindshield->SetRelativeScale3D(FVector(0.57f, 0.89f, 0.64f));
+	PlaceholderWindshield->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) PlaceholderWindshield->SetStaticMesh(CubeFinder.Object);
+
+	PlaceholderSideBand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderSideBand"));
+	PlaceholderSideBand->SetupAttachment(PlaceholderChassis);
+	PlaceholderSideBand->SetRelativeLocation(FVector(0.0f, 0.0f, 18.0f));
+	PlaceholderSideBand->SetRelativeScale3D(FVector(1.005f, 1.02f, 0.22f));
+	PlaceholderSideBand->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) PlaceholderSideBand->SetStaticMesh(CubeFinder.Object);
+
+	PlaceholderFrontGrille = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderFrontGrille"));
+	PlaceholderFrontGrille->SetupAttachment(PlaceholderChassis);
+	PlaceholderFrontGrille->SetRelativeLocation(FVector(50.5f, 0.0f, -6.0f));
+	PlaceholderFrontGrille->SetRelativeScale3D(FVector(0.02f, 0.62f, 0.45f));
+	PlaceholderFrontGrille->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (CubeFinder.Succeeded()) PlaceholderFrontGrille->SetStaticMesh(CubeFinder.Object);
+
 	PlaceholderRoofSign = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderRoofSign"));
-	PlaceholderRoofSign->SetupAttachment(GetMesh());
-	PlaceholderRoofSign->SetRelativeLocation(FVector(-10.0f, 0.0f, 134.0f));
-	PlaceholderRoofSign->SetRelativeScale3D(FVector(0.35f, 0.85f, 0.16f));
+	PlaceholderRoofSign->SetupAttachment(PlaceholderChassis);
+	PlaceholderRoofSign->SetRelativeLocation(FVector(-3.0f, 0.0f, 146.0f));
+	PlaceholderRoofSign->SetRelativeScale3D(FVector(0.085f, 0.48f, 0.28f));
 	PlaceholderRoofSign->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (CubeFinder.Succeeded()) PlaceholderRoofSign->SetStaticMesh(CubeFinder.Object);
+
+	for (int32 i = 0; i < 2; ++i)
+	{
+		const float SideSign = (i == 0) ? -1.0f : 1.0f;
+		UStaticMeshComponent* HL = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("PlaceholderHeadlight_%d"), i));
+		HL->SetupAttachment(PlaceholderChassis);
+		HL->SetRelativeLocation(FVector(50.6f, SideSign * 36.0f, 8.0f));
+		HL->SetRelativeScale3D(FVector(0.02f, 0.16f, 0.26f));
+		HL->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CubeFinder.Succeeded()) HL->SetStaticMesh(CubeFinder.Object);
+		PlaceholderHeadlights.Add(HL);
+
+		UStaticMeshComponent* TL = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("PlaceholderTaillight_%d"), i));
+		TL->SetupAttachment(PlaceholderChassis);
+		TL->SetRelativeLocation(FVector(-50.6f, SideSign * 36.0f, 12.0f));
+		TL->SetRelativeScale3D(FVector(0.02f, 0.18f, 0.28f));
+		TL->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CubeFinder.Succeeded()) TL->SetStaticMesh(CubeFinder.Object);
+		PlaceholderTaillights.Add(TL);
+	}
 
 	const FVector WheelOffsets[4] = {
 		FVector(135.0f, -88.0f, 32.0f), // FL
@@ -97,10 +138,18 @@ ATaxiPawn::ATaxiPawn()
 		W->SetupAttachment(GetMesh());
 		W->SetRelativeLocation(WheelOffsets[i]);
 		W->SetRelativeRotation(FRotator(0.0f, 0.0f, 90.0f)); // Cylinder axis along Y (axle)
-		W->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.22f));
+		W->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.24f));
 		W->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		if (CylFinder.Succeeded()) W->SetStaticMesh(CylFinder.Object);
 		PlaceholderWheels.Add(W);
+
+		UStaticMeshComponent* Hub = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("PlaceholderHubcap_%d"), i));
+		Hub->SetupAttachment(W);
+		Hub->SetRelativeLocation(FVector(0.0f, 0.0f, (i % 2 == 0) ? -52.0f : 52.0f));
+		Hub->SetRelativeScale3D(FVector(0.58f, 0.58f, 0.12f));
+		Hub->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (CylFinder.Succeeded()) Hub->SetStaticMesh(CylFinder.Object);
+		PlaceholderHubcaps.Add(Hub);
 	}
 
 	// --- Cameras ---
@@ -179,13 +228,16 @@ void ATaxiPawn::BeginPlay()
 				MID->SetVectorParameterValue(TEXT("Color"), Color);
 				Comp->SetMaterial(0, MID);
 			};
-			TintComp(PlaceholderChassis,  FLinearColor(0.96f, 0.72f, 0.02f)); // Istanbul Sarı Taksi yellow
-			TintComp(PlaceholderCabin,    FLinearColor(0.85f, 0.62f, 0.02f));
-			TintComp(PlaceholderRoofSign, FLinearColor(1.00f, 0.92f, 0.15f)); // Bright yellow TAKSİ sign
-			for (UStaticMeshComponent* W : PlaceholderWheels)
-			{
-				TintComp(W, FLinearColor(0.06f, 0.06f, 0.07f)); // Dark rubber tires
-			}
+			TintComp(PlaceholderChassis,     FLinearColor(0.96f, 0.70f, 0.02f)); // Iconic Istanbul Sarı Taksi yellow
+			TintComp(PlaceholderCabin,       FLinearColor(0.92f, 0.66f, 0.02f));
+			TintComp(PlaceholderWindshield,  FLinearColor(0.07f, 0.10f, 0.14f)); // Dark tinted greenhouse glass
+			TintComp(PlaceholderSideBand,    FLinearColor(0.05f, 0.05f, 0.06f)); // Black checkered taxi beltline
+			TintComp(PlaceholderFrontGrille, FLinearColor(0.06f, 0.06f, 0.07f)); // Radiator grille
+			TintComp(PlaceholderRoofSign,    FLinearColor(1.00f, 0.92f, 0.18f)); // Bright yellow TAKSİ roof sign
+			for (UStaticMeshComponent* HL : PlaceholderHeadlights) TintComp(HL, FLinearColor(1.00f, 0.96f, 0.78f));
+			for (UStaticMeshComponent* TL : PlaceholderTaillights) TintComp(TL, FLinearColor(0.92f, 0.08f, 0.06f));
+			for (UStaticMeshComponent* W  : PlaceholderWheels)     TintComp(W,  FLinearColor(0.05f, 0.05f, 0.06f));
+			for (UStaticMeshComponent* H  : PlaceholderHubcaps)    TintComp(H,  FLinearColor(0.72f, 0.75f, 0.78f));
 		}
 	}
 
