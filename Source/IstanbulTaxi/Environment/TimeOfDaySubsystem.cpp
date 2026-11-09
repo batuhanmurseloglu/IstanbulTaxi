@@ -206,14 +206,17 @@ void UTimeOfDaySubsystem::UpdateSolarAndEnvironment()
 	if (APostProcessVolume* PP = PostProcess.Get())
 	{
 		PP->bUnbound = true;
+		PP->Priority = 100.0f;
 		PP->Settings.bOverride_AutoExposureMethod = true;
-		PP->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Histogram;
+		PP->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+		PP->Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+		PP->Settings.AutoExposureApplyPhysicalCameraExposure = false;
 		PP->Settings.bOverride_AutoExposureMinBrightness = true;
 		PP->Settings.AutoExposureMinBrightness = 1.0f;
 		PP->Settings.bOverride_AutoExposureMaxBrightness = true;
 		PP->Settings.AutoExposureMaxBrightness = 1.0f;
 		PP->Settings.bOverride_AutoExposureBias = true;
-		PP->Settings.AutoExposureBias = CurrentSample.ExposureCompensation;
+		PP->Settings.AutoExposureBias = -4.0f + CurrentSample.ExposureCompensation;
 	}
 
 	// Push to MPC_Environment

@@ -15,6 +15,7 @@ class UInputAction;
 class UForceFeedbackEffect;
 class UTaxiSurfaceComponent;
 class UTaximeterComponent;
+class UPassengerInteractionComponent;
 class UWidgetComponent;
 class UChaosWheeledVehicleMovementComponent;
 struct FInputActionValue;
@@ -75,6 +76,9 @@ public:
 	UTaximeterComponent* GetTaximeter() const { return Taximeter; }
 
 	UFUNCTION(BlueprintPure, Category = "Taxi")
+	UPassengerInteractionComponent* GetPassengerInteraction() const { return PassengerInteraction; }
+
+	UFUNCTION(BlueprintPure, Category = "Taxi")
 	UChaosWheeledVehicleMovementComponent* GetChaosMovement() const;
 
 protected:
@@ -95,6 +99,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTaximeterComponent> Taximeter;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UPassengerInteractionComponent> PassengerInteraction;
 
 	/** Physical interior dashboard/mirror taximeter display (WBP_TaximeterDisplay or C++ fallback). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -216,6 +223,9 @@ private:
 	void LegacyTriggerEzan();
 	void LegacyAdvanceTime();
 	void LegacyHornPressed();
+	void LegacyDialogueChoice1();
+	void LegacyDialogueChoice2();
+	void LegacyDialogueChoice3();
 
 	UFUNCTION()
 	void HandleSurfaceImpact(int32 WheelIndex, FGameplayTag Surface, float Severity);

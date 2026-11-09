@@ -1,4 +1,5 @@
 #include "Missions/PassengerMissionSubsystem.h"
+#include "Missions/PassengerInteractionComponent.h"
 #include "Missions/TaxiRidePolicyDataAsset.h"
 #include "Taximeter/TaximeterTariffDataAsset.h"
 #include "Core/IstanbulTaxiSettings.h"
@@ -62,12 +63,32 @@ bool UPassengerMissionSubsystem::StartRide(FTaxiRideRequest Request)
 bool UPassengerMissionSubsystem::StartDebugRide(FVector PickupOffset, FVector DropoffOffset)
 {
 	if (!Taximeter || !Taximeter->GetOwner()) return false;
-	const FTransform T = Taximeter->GetOwner()->GetActorTransform();
+	static int32 RouteCycle = 0;
+	const int32 RouteIdx = RouteCycle % 3;
+	++RouteCycle;
+
 	FTaxiRideRequest R;
-	R.PickupName = NSLOCTEXT("Missions", "DebugPickup", "Test Durağı");
-	R.DropoffName = NSLOCTEXT("Missions", "DebugDropoff", "Test Varış");
-	R.PickupLocation = T.TransformPosition(PickupOffset);
-	R.DropoffLocation = T.TransformPosition(DropoffOffset);
+	if (RouteIdx == 0)
+	{
+		R.PickupName = FText::FromString(TEXT("Eminönü İETT Durağı (Sahil)"));
+		R.DropoffName = FText::FromString(TEXT("Cihangir / Galata Tepesi (Yokuş Üstü)"));
+		R.PickupLocation = FVector(3000.0f, 800.0f, 5.0f);
+		R.DropoffLocation = FVector(11800.0f, 7600.0f, 1180.0f);
+	}
+	else if (RouteIdx == 1)
+	{
+		R.PickupName = FText::FromString(TEXT("Cihangir Tepesi Camii Meydanı"));
+		R.DropoffName = FText::FromString(TEXT("15 Temmuz Köprüsü Girişi (Beşiktaş)"));
+		R.PickupLocation = FVector(11800.0f, 7600.0f, 1180.0f);
+		R.DropoffLocation = FVector(21500.0f, 600.0f, 5.0f);
+	}
+	else
+	{
+		R.PickupName = FText::FromString(TEXT("Kabataş Sahil Durağı"));
+		R.DropoffName = FText::FromString(TEXT("Anadolu Yakası (Köprü Geçişli)"));
+		R.PickupLocation = FVector(15500.0f, 800.0f, 5.0f);
+		R.DropoffLocation = FVector(28500.0f, 500.0f, 5.0f);
+	}
 	return StartRide(R);
 }
 
@@ -204,6 +225,19 @@ FTaxiRideResult UPassengerMissionSubsystem::SettleFare(const FTaxiFareReceipt& R
 		const int32 Rounded = ((Res.PaidFareKurus + Step - 1) / Step) * Step;
 		Res.TipKurus = (Rounded == Res.PaidFareKurus) ? Step : Rounded - Res.PaidFareKurus;
 		Res.Notes.AddTag(IstanbulTaxiTags::Ride_Note_Tipped);
+	}
+
+	// Apply Passenger Personality, Comfort & Patience evaluation from UPassengerInteractionComponent
+	if (Taximeter && Taximeter->GetOwner())
+	{
+		if (const UPassengerInteractionComponent* Interaction = Taximeter->GetOwner()->FindComponentByClass<UPassengerInteractionComponent>())
+		{
+			Interaction->EvaluateRidePerformance(Res.PaidFareKurus, Res.Rating, Res.TipKurus);
+			if (Res.TipKurus > 0)
+			{
+				Res.Notes.AddTag(IstanbulTaxiTags::Ride_Note_Tipped);
+			}
+		}
 	}
 	return Res;
 }

@@ -298,7 +298,7 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		if (UDirectionalLightComponent* DLC = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
 		{
 			DLC->SetAtmosphereSunLight(true);
-			DLC->SetIntensity(8.0f);
+			DLC->SetIntensity(36.0f);
 		}
 	}
 
@@ -311,6 +311,7 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	{
 		Sky->GetLightComponent()->SetMobility(EComponentMobility::Movable);
 		Sky->GetLightComponent()->bRealTimeCapture = true;
+		Sky->GetLightComponent()->SetIntensity(4.5f);
 	}
 
 	if (!UGameplayStatics::GetActorOfClass(W, ASkyAtmosphere::StaticClass()))
@@ -333,15 +334,17 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	{
 		PP->bUnbound = true;
 		PP->Priority = 100.0f;
-		// Lock Auto-Exposure permanently (MinBrightness = MaxBrightness = 1.0) so it never washes out to white!
+		// Permanent Manual Exposure Lock (AEM_Manual + Bias -4.0f) so the viewport never washes out to white!
 		PP->Settings.bOverride_AutoExposureMethod = true;
-		PP->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Histogram;
+		PP->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+		PP->Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+		PP->Settings.AutoExposureApplyPhysicalCameraExposure = false;
 		PP->Settings.bOverride_AutoExposureMinBrightness = true;
 		PP->Settings.AutoExposureMinBrightness = 1.0f;
 		PP->Settings.bOverride_AutoExposureMaxBrightness = true;
 		PP->Settings.AutoExposureMaxBrightness = 1.0f;
 		PP->Settings.bOverride_AutoExposureBias = true;
-		PP->Settings.AutoExposureBias = 0.0f;
+		PP->Settings.AutoExposureBias = -4.0f;
 	}
 
 	ATimeOfDayActor* TODActor = Cast<ATimeOfDayActor>(UGameplayStatics::GetActorOfClass(W, ATimeOfDayActor::StaticClass()));
@@ -436,29 +439,29 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	}
 
 	// =========================================================================
-	// 3. ZONE B — STEEP COBBLESTONE NARROW SIDE STREETS (ARA SOKAKLAR & YOKUŞLAR)
+	// 3. ZONE B — STEEP 12° COBBLESTONE NARROW SIDE STREETS (CİHANGİR / GALATA YOKUŞU)
 	// =========================================================================
-	// Side Street Loop turns right off the boulevard at X=+35m, climbs an 8° cobblestone hill (Yokuş) to Z=+420cm
-	// at Y=+76m, runs along the upper historic ridge (X=+35m .. +205m, Y=+76m, Z=+420cm) past the hilltop mosque,
-	// and descends an 8° cobblestone ramp back to the boulevard at X=+205m!
+	// Side Street Loop turns right off the boulevard at X=+35m, climbs a steep ~12° cobblestone hill (Yokuş) to Z=+1180cm
+	// at Y=+76m, runs along the upper historic ridge (X=+35m .. +205m, Y=+76m, Z=+1180cm) past the hilltop mosque,
+	// and descends a steep ~12° cobblestone ramp back to the boulevard at X=+205m!
 	const FLinearColor CobbleCol(0.26f, 0.25f, 0.24f);
 
-	// 1) Uphill Narrow Cobblestone Alley (Yokuş Yukarı): X = +35m, Y = +11m -> +76m, Z = 0 -> +420cm
-	SpawnBox(TEXT("Cobble_UphillRamp"), Origin + FVector(3500.0f, 4350.0f, 195.0f),
-		FVector(68.0f, 9.2f, 0.45f), CobbleCol, true, FRotator(3.6f, 90.0f, 0.0f), TEXT("Surface_Cobblestone"));
+	// 1) Steep Uphill Narrow Cobblestone Alley (Cihangir Yokuşu Yukarı, ~12° grade): X = +35m, Y = +11m -> +76m, Z = 0 -> +1180cm
+	SpawnBox(TEXT("Cobble_UphillRamp"), Origin + FVector(3500.0f, 4350.0f, 570.0f),
+		FVector(69.5f, 8.8f, 0.45f), CobbleCol, true, FRotator(12.0f, 90.0f, 0.0f), TEXT("Surface_Cobblestone"));
 
-	// 2) Upper Historic Ridge Cobblestone Street (Balat / Sultanahmet Sokak): X = +35m -> +205m, Y = +76m, Z = +420cm
-	SpawnBox(TEXT("Cobble_UpperRidgeStreet"), Origin + FVector(12000.0f, 7600.0f, 405.0f),
-		FVector(182.0f, 9.5f, 0.45f), CobbleCol, true, FRotator::ZeroRotator, TEXT("Surface_Cobblestone"));
+	// 2) Upper Historic Ridge Cobblestone Street (Cihangir / Galata / Sultanahmet Sokak): X = +35m -> +205m, Y = +76m, Z = +1180cm
+	SpawnBox(TEXT("Cobble_UpperRidgeStreet"), Origin + FVector(12000.0f, 7600.0f, 1158.0f),
+		FVector(182.0f, 9.2f, 0.45f), CobbleCol, true, FRotator::ZeroRotator, TEXT("Surface_Cobblestone"));
 
-	// 3) Downhill Narrow Cobblestone Alley (Yokuş Aşağı): X = +205m, Y = +76m -> +11m, Z = +420cm -> 0
-	SpawnBox(TEXT("Cobble_DownhillRamp"), Origin + FVector(20500.0f, 4350.0f, 195.0f),
-		FVector(68.0f, 9.2f, 0.45f), CobbleCol, true, FRotator(3.6f, -90.0f, 0.0f), TEXT("Surface_Cobblestone"));
+	// 3) Steep Downhill Narrow Cobblestone Alley (Beşiktaş / Tophane Yokuşu Aşağı, ~12° grade): X = +205m, Y = +76m -> +11m, Z = +1180cm -> 0
+	SpawnBox(TEXT("Cobble_DownhillRamp"), Origin + FVector(20500.0f, 4350.0f, 570.0f),
+		FVector(69.5f, 8.8f, 0.45f), CobbleCol, true, FRotator(12.0f, -90.0f, 0.0f), TEXT("Surface_Cobblestone"));
 
-	// High narrow curbstones along the Upper Historic Street
-	SpawnBox(TEXT("UpperCurb_South"), Origin + FVector(12000.0f, 7020.0f, 438.0f),
+	// High narrow curbstones along the Upper Historic Street (Z = 1180cm + curb height)
+	SpawnBox(TEXT("UpperCurb_South"), Origin + FVector(12000.0f, 7040.0f, 1192.0f),
 		FVector(160.0f, 2.2f, 0.28f), SidewalkCol, true);
-	SpawnBox(TEXT("UpperCurb_North"), Origin + FVector(12000.0f, 8180.0f, 438.0f),
+	SpawnBox(TEXT("UpperCurb_North"), Origin + FVector(12000.0f, 8160.0f, 1192.0f),
 		FVector(160.0f, 2.2f, 0.28f), SidewalkCol, true);
 
 	// Closely Packed 4-to-6 Story Bitişik Nizam Apartment Blocks flanking both the Boulevard and Narrow Streets
@@ -482,11 +485,11 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			IstanbulPalette[b % 7], (b % 2 == 0), true);
 	}
 
-	// Row 2: Narrow Uphill Street flanking apartments (X = +21m & X = +49m, climbing along Y = +24m .. +64m)
+	// Row 2: Narrow Uphill Street flanking apartments (X = +21m & X = +49m, climbing along Y = +24m .. +64m up the 12° hill)
 	for (int32 b = 0; b < 3; ++b)
 	{
 		const float BY = 2600.0f + b * 1700.0f;
-		const float BZ = (b + 1) * 95.0f;
+		const float BZ = 260.0f + b * 310.0f;
 		SpawnIstanbulApartmentBlock(FString::Printf(TEXT("Apt_UphillL_%d"), b),
 			Origin + FVector(2150.0f, BY, BZ), 0.0f, 5, 16.5f, 13.0f,
 			IstanbulPalette[(b + 2) % 7], true, true);
@@ -495,38 +498,43 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			IstanbulPalette[(b + 4) % 7], true, (b == 0));
 	}
 
-	// Row 3: Upper Historic Ridge tightly-packed bitişik nizam row houses (Y = +61m and Y = +91m, Z = +420cm)
+	// Row 3: Upper Historic Ridge tightly-packed bitişik nizam row houses (Y = +61m and Y = +91m, Z = +1180cm)
 	for (int32 b = 0; b < 9; ++b)
 	{
 		const float BX = 5400.0f + b * 1600.0f;
 		SpawnIstanbulApartmentBlock(FString::Printf(TEXT("Apt_UpperSouth_%d"), b),
-			Origin + FVector(BX, 6150.0f, 420.0f), 90.0f, 4 + (b % 3), 15.8f, 13.0f,
+			Origin + FVector(BX, 6150.0f, 1180.0f), 90.0f, 4 + (b % 3), 15.8f, 13.0f,
 			IstanbulPalette[(b + 1) % 7], true, true);
 
-		// Leave a grand plaza opening at b == 4..5 for the Hilltop Sultanahmet Mosque Complex!
+		// Leave a grand plaza opening at b == 4..5 for the Hilltop Mosque Complex!
 		if (b < 3 || b > 5)
 		{
 			SpawnIstanbulApartmentBlock(FString::Printf(TEXT("Apt_UpperNorth_%d"), b),
-				Origin + FVector(BX, 9050.0f, 420.0f), -90.0f, 5 + (b % 2), 15.8f, 13.0f,
+				Origin + FVector(BX, 9050.0f, 1180.0f), -90.0f, 5 + (b % 2), 15.8f, 13.0f,
 				IstanbulPalette[(b + 3) % 7], true, true);
 		}
 
-		// Overhead tangled electrical cables & streetlamps spanning across the narrow upper street
+		// Yellow-black narrow alley bollards (Dubalar) on the upper ridge curbstones
+		SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), FString::Printf(TEXT("UpperBollard_%d"), b),
+			Origin + FVector(BX, 7110.0f, 1225.0f), FRotator::ZeroRotator,
+			FVector(0.22f, 0.22f, 0.85f), (b % 2 == 0) ? FLinearColor(0.96f, 0.72f, 0.02f) : FLinearColor(0.08f, 0.08f, 0.09f), true);
+
+		// Overhead tangled electrical cables spanning across the narrow upper street
 		SpawnBox(FString::Printf(TEXT("OverheadCable_%d"), b),
-			Origin + FVector(BX, 7600.0f, 1180.0f),
+			Origin + FVector(BX, 7600.0f, 1940.0f),
 			FVector(0.05f, 16.0f, 0.05f), FLinearColor(0.03f, 0.03f, 0.03f), false);
 	}
 
 	// Cars parked half-on-the-sidewalk (Kaldırıma yarı çıkmış park etmiş araçlar, tilted 9° Roll) in the narrow streets
-	SpawnParkedCurbCar(TEXT("ParkedCar_Uphill1"), Origin + FVector(3120.0f, 3100.0f, 130.0f), FRotator(3.6f,  90.0f,  9.0f), FLinearColor(0.75f, 0.78f, 0.82f));
-	SpawnParkedCurbCar(TEXT("ParkedCar_Upper1"),  Origin + FVector(6800.0f, 7120.0f, 435.0f), FRotator(0.0f,   2.0f, -9.0f), FLinearColor(0.16f, 0.22f, 0.35f));
-	SpawnParkedCurbCar(TEXT("ParkedCar_Upper2"),  Origin + FVector(9800.0f, 8080.0f, 435.0f), FRotator(0.0f, 178.0f,  9.0f), FLinearColor(0.58f, 0.12f, 0.12f));
-	SpawnParkedCurbCar(TEXT("ParkedCar_Upper3"),  Origin + FVector(15600.0f, 7120.0f, 435.0f), FRotator(0.0f,  0.0f, -9.0f), FLinearColor(0.82f, 0.82f, 0.80f));
+	SpawnParkedCurbCar(TEXT("ParkedCar_Uphill1"), Origin + FVector(3120.0f, 3100.0f, 385.0f),  FRotator(12.0f, 90.0f,  9.0f), FLinearColor(0.75f, 0.78f, 0.82f));
+	SpawnParkedCurbCar(TEXT("ParkedCar_Upper1"),  Origin + FVector(6800.0f, 7140.0f, 1195.0f), FRotator(0.0f,   2.0f, -9.0f), FLinearColor(0.16f, 0.22f, 0.35f));
+	SpawnParkedCurbCar(TEXT("ParkedCar_Upper2"),  Origin + FVector(9800.0f, 8060.0f, 1195.0f), FRotator(0.0f, 178.0f,  9.0f), FLinearColor(0.58f, 0.12f, 0.12f));
+	SpawnParkedCurbCar(TEXT("ParkedCar_Upper3"),  Origin + FVector(15600.0f, 7140.0f, 1195.0f), FRotator(0.0f,  0.0f, -9.0f), FLinearColor(0.82f, 0.82f, 0.80f));
 
 	// =========================================================================
 	// 4. HILLTOP MOSQUE SILHOUETTE, BOSPHORUS WATER & AUDIO ZONES
 	// =========================================================================
-	const FVector MosqueHillPos = Origin + FVector(11800.0f, 10600.0f, 420.0f);
+	const FVector MosqueHillPos = Origin + FVector(11800.0f, 10600.0f, 1180.0f);
 	SpawnDetailedMosqueComplex(MosqueHillPos);
 
 	if (!UGameplayStatics::GetActorOfClass(W, AMosqueActor::StaticClass()))
@@ -570,12 +578,12 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		}
 
 		// Upper Historic Cobblestone District Zone (higher priority)
-		ADistrictAmbienceVolume* HillZone = W->SpawnActor<ADistrictAmbienceVolume>(Origin + FVector(12000.0f, 7600.0f, 500.0f), FRotator::ZeroRotator, SpawnParams);
+		ADistrictAmbienceVolume* HillZone = W->SpawnActor<ADistrictAmbienceVolume>(Origin + FVector(12000.0f, 7600.0f, 1280.0f), FRotator::ZeroRotator, SpawnParams);
 		if (HillZone)
 		{
 			UDistrictAmbienceDataAsset* SultanProf = NewObject<UDistrictAmbienceDataAsset>(HillZone);
 			SultanProf->DistrictTag = IstanbulTaxiTags::District_HistoricPeninsula;
-			SultanProf->DisplayName = FText::FromString(TEXT("Sultanahmet / Balat Ara Sokakları"));
+			SultanProf->DisplayName = FText::FromString(TEXT("Cihangir / Galata / Sultanahmet Yokuşu"));
 			SultanProf->BaseTrafficMurmur = 0.35f;
 			SultanProf->TeaGardenClatter = 0.80f;
 			SultanProf->CrowdChatter = 0.55f;
@@ -629,12 +637,12 @@ void ATestSceneBuilder::BuildPrototypeScene()
 			};
 
 			TArray<FVector> SideStreetLoop = {
-				Origin + FVector( 3500.0f,  800.0f,   5.0f),
-				Origin + FVector( 3500.0f, 7600.0f, 425.0f),
-				Origin + FVector(11500.0f, 7600.0f, 425.0f),
-				Origin + FVector(20500.0f, 7600.0f, 425.0f),
-				Origin + FVector(20500.0f,  800.0f,   5.0f),
-				Origin + FVector(12000.0f,  480.0f,   5.0f)
+				Origin + FVector( 3500.0f,  800.0f,    5.0f),
+				Origin + FVector( 3500.0f, 7600.0f, 1185.0f),
+				Origin + FVector(11500.0f, 7600.0f, 1185.0f),
+				Origin + FVector(20500.0f, 7600.0f, 1185.0f),
+				Origin + FVector(20500.0f,  800.0f,    5.0f),
+				Origin + FVector(12000.0f,  480.0f,    5.0f)
 			};
 
 			TrafficMgr->PopulateIstanbulTraffic(Origin, BlvdRight, BlvdLeft, SideStreetLoop);

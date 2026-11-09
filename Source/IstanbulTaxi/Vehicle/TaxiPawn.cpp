@@ -5,6 +5,7 @@
 #include "Taximeter/TaximeterComponent.h"
 #include "Taximeter/TaximeterDisplayWidget.h"
 #include "Missions/PassengerMissionSubsystem.h"
+#include "Missions/PassengerInteractionComponent.h"
 #include "Environment/TimeOfDaySubsystem.h"
 #include "Audio/AudioAmbienceSubsystem.h"
 #include "Core/IstanbulTaxiGameplayTags.h"
@@ -128,6 +129,7 @@ ATaxiPawn::ATaxiPawn()
 	// --- Systems ---
 	SurfaceComponent = CreateDefaultSubobject<UTaxiSurfaceComponent>(TEXT("SurfaceComponent"));
 	Taximeter = CreateDefaultSubobject<UTaximeterComponent>(TEXT("Taximeter"));
+	PassengerInteraction = CreateDefaultSubobject<UPassengerInteractionComponent>(TEXT("PassengerInteraction"));
 
 	TaximeterDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("TaximeterDisplay"));
 	TaximeterDisplay->SetupAttachment(GetMesh());
@@ -243,6 +245,9 @@ void ATaxiPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	PlayerInputComponent->BindAction(TEXT("TriggerTestEzan"), IE_Pressed,  this, &ATaxiPawn::LegacyTriggerEzan);
 	PlayerInputComponent->BindAction(TEXT("AdvanceTimeHour"), IE_Pressed,  this, &ATaxiPawn::LegacyAdvanceTime);
 	PlayerInputComponent->BindAction(TEXT("Horn"),            IE_Pressed,  this, &ATaxiPawn::LegacyHornPressed);
+	PlayerInputComponent->BindAction(TEXT("DialogueChoice1"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice1);
+	PlayerInputComponent->BindAction(TEXT("DialogueChoice2"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice2);
+	PlayerInputComponent->BindAction(TEXT("DialogueChoice3"), IE_Pressed,  this, &ATaxiPawn::LegacyDialogueChoice3);
 
 	// 2. Enhanced Input bindings (if InputAction assets are also assigned on a BP child)
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent))
@@ -357,27 +362,32 @@ void ATaxiPawn::Tick(float DeltaSeconds)
 
 void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 {
-	// Credible ~1350kg Egea kinematic model when no SkeletalMesh wheel bones exist yet:
-	const float AccelCms2    = 620.0f;  // 0-100 km/h in ~11s
-	const float BrakeCms2    = 1450.0f;
-	const float ReverseCms2  = 420.0f;
-	const float DragPerSec   = 0.45f;
+	// Credible ~1350kg Egea kinematic model with real gravity slope resistance on 12°-18° Cihangir/Galata hills!
+	const float AccelCms2    = 680.0f;  // 1.6 Multijet diesel torque
+	const float BrakeCms2    = 1550.0f;
+	const float ReverseCms2  = 440.0f;
+	const float DragPerSec   = 0.42f;
 	const float MaxFwdCms    = 3888.0f; // ~140 km/h
 	const float MaxRevCms    = -972.0f; // ~35 km/h
 
+	// Gravity component along current road pitch: G * sin(Pitch) -> challenges uphill starts unless Space handbrake or throttle is held!
+	const float PitchRad = FMath::DegreesToRadians(GetActorRotation().Pitch);
+	const float SlopeGravityAccelCms2 = -980.0f * FMath::Sin(PitchRad) * 0.65f;
+
 	if (bHandbrakeActive)
 	{
-		PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2 * 1.15f);
+		// Handbrake holds the car stationary on steep hills (Spacebar hill-start!)
+		PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2 * 1.4f);
 	}
 	else if (RawThrottleInput > 0.01f)
 	{
-		if (PlaceholderForwardSpeedCms < -10.0f)
+		if (PlaceholderForwardSpeedCms < -25.0f)
 		{
 			PlaceholderForwardSpeedCms = FMath::FInterpConstantTo(PlaceholderForwardSpeedCms, 0.0f, DeltaSeconds, BrakeCms2);
 		}
 		else
 		{
-			PlaceholderForwardSpeedCms += RawThrottleInput * AccelCms2 * DeltaSeconds;
+			PlaceholderForwardSpeedCms += (RawThrottleInput * AccelCms2 + SlopeGravityAccelCms2) * DeltaSeconds;
 		}
 	}
 	else if (RawBrakeInput > 0.01f)
@@ -388,13 +398,17 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 		}
 		else
 		{
-			PlaceholderForwardSpeedCms -= RawBrakeInput * ReverseCms2 * DeltaSeconds;
+			PlaceholderForwardSpeedCms += (-RawBrakeInput * ReverseCms2 + SlopeGravityAccelCms2) * DeltaSeconds;
 		}
 	}
 	else
 	{
+		PlaceholderForwardSpeedCms += SlopeGravityAccelCms2 * DeltaSeconds;
 		PlaceholderForwardSpeedCms -= PlaceholderForwardSpeedCms * DragPerSec * DeltaSeconds;
-		if (FMath::Abs(PlaceholderForwardSpeedCms) < 8.0f) PlaceholderForwardSpeedCms = 0.0f;
+		if (FMath::Abs(SlopeGravityAccelCms2) < 15.0f && FMath::Abs(PlaceholderForwardSpeedCms) < 8.0f)
+		{
+			PlaceholderForwardSpeedCms = 0.0f;
+		}
 	}
 
 	PlaceholderForwardSpeedCms = FMath::Clamp(PlaceholderForwardSpeedCms, MaxRevCms, MaxFwdCms);
@@ -429,6 +443,11 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 	SetActorLocationAndRotation(NewLoc, NewRot, true, &SweepHit);
 	if (SweepHit.bBlockingHit)
 	{
+		const float ImpactSpeedKmh = FMath::Abs(PlaceholderForwardSpeedCms) * 0.036f;
+		if (ImpactSpeedKmh > 12.0f && PassengerInteraction)
+		{
+			PassengerInteraction->NotifyHardJoltOrCollision(FMath::Clamp(ImpactSpeedKmh / 65.0f, 0.25f, 1.0f), true);
+		}
 		// Slide along curbstones/parked cars and damp speed on collision
 		PlaceholderForwardSpeedCms *= 0.45f;
 	}
@@ -495,6 +514,10 @@ void ATaxiPawn::UpdateFeel(float DeltaSeconds)
 void ATaxiPawn::HandleSurfaceImpact(int32 WheelIndex, FGameplayTag Surface, float Severity)
 {
 	JoltOffset = FMath::Max(JoltOffset, Severity * ImpactJoltAmplitude);
+	if (PassengerInteraction && Severity > 0.2f)
+	{
+		PassengerInteraction->NotifyHardJoltOrCollision(Severity, false);
+	}
 
 	if (ImpactSound)
 	{
@@ -725,6 +748,21 @@ void ATaxiPawn::TriggerPlayerHorn()
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, HornCue, GetActorLocation(), 1.0f, 0.72f);
 	}
+}
+
+void ATaxiPawn::LegacyDialogueChoice1()
+{
+	if (PassengerInteraction) PassengerInteraction->SelectDialogueChoice(1);
+}
+
+void ATaxiPawn::LegacyDialogueChoice2()
+{
+	if (PassengerInteraction) PassengerInteraction->SelectDialogueChoice(2);
+}
+
+void ATaxiPawn::LegacyDialogueChoice3()
+{
+	if (PassengerInteraction) PassengerInteraction->SelectDialogueChoice(3);
 }
 
 void ATaxiPawn::ResetVehicle()

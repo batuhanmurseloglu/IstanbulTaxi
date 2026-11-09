@@ -1,6 +1,7 @@
 #include "Core/IstanbulTaxiHUD.h"
 #include "Vehicle/TaxiPawn.h"
 #include "Vehicle/TaxiSurfaceComponent.h"
+#include "Missions/PassengerInteractionComponent.h"
 #include "Taximeter/TaximeterComponent.h"
 #include "Taximeter/TaximeterTariffDataAsset.h"
 #include "Environment/TimeOfDaySubsystem.h"
@@ -271,19 +272,19 @@ void AIstanbulTaxiHUD::DrawHUD()
 	DrawText(TEXT("DEVİR (RPM) x1000"), FLinearColor(0.55f, 0.60f, 0.66f), RpmBarX, RpmBarY + 24.0f, Font, 0.76f);
 
 	// =========================================================================
-	// 3. TOP-RIGHT: PASSENGER MISSION TRACKER & 3D WAYPOINT
+	// 3. TOP-RIGHT: PASSENGER MISSION TRACKER, PATIENCE/COMFORT & DIALOGUE UI
 	// =========================================================================
 	if (const UPassengerMissionSubsystem* Missions = GetWorld()->GetSubsystem<UPassengerMissionSubsystem>())
 	{
 		const ETaxiRidePhase Phase = Missions->GetPhase();
-		const float MisW = 390.0f;
+		const float MisW = 430.0f;
 		const float MisX = ScreenW - MisW - 24.0f;
 		DrawBezelBox(MisX, 18.0f, MisW, 82.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.86f), FLinearColor(0.25f, 0.78f, 1.0f, 0.85f));
 
 		if (Phase == ETaxiRidePhase::None)
 		{
 			DrawText(TEXT("YOLCU ÇAĞRISI BEKLENİYOR"), FLinearColor(0.78f, 0.84f, 0.92f), MisX + 14.0f, 28.0f, Font, 0.98f);
-			DrawText(TEXT("[E] Tuşu: Eminönü Durağı -> Köprü Girişi Çağrısı"), FLinearColor(0.98f, 0.82f, 0.20f), MisX + 14.0f, 56.0f, Font, 0.88f);
+			DrawText(TEXT("[E] Tuşu: Yeni Yolcu Çağrısı (Yokuş / Sahil / Köprü)"), FLinearColor(0.98f, 0.82f, 0.20f), MisX + 14.0f, 56.0f, Font, 0.88f);
 		}
 		else
 		{
@@ -297,7 +298,7 @@ void AIstanbulTaxiHUD::DrawHUD()
 			const FLinearColor ObjColor = (Phase == ETaxiRidePhase::ToPickup)
 				? FLinearColor(0.25f, 0.95f, 0.45f) : FLinearColor(1.0f, 0.75f, 0.15f);
 
-			DrawText(PhaseTitle, ObjColor, MisX + 14.0f, 28.0f, Font, 0.96f);
+			DrawText(PhaseTitle, ObjColor, MisX + 14.0f, 28.0f, Font, 0.94f);
 			DrawText(FString::Printf(TEXT("Mesafe: %.0f m  (Alan içinde 2 sn durun)"), DistM),
 				FLinearColor::White, MisX + 14.0f, 56.0f, Font, 0.90f);
 
@@ -309,6 +310,70 @@ void AIstanbulTaxiHUD::DrawHUD()
 				DrawBezelBox(SX - 52.0f, SY - 28.0f, 104.0f, 24.0f, FLinearColor(0.01f, 0.02f, 0.03f, 0.88f), ObjColor, 1.5f);
 				DrawText(FString::Printf(TEXT("%s %.0fm"), Phase == ETaxiRidePhase::ToPickup ? TEXT("YOLCU") : TEXT("HEDEF"), DistM),
 					ObjColor, SX - 44.0f, SY - 26.0f, Font, 0.85f);
+			}
+		}
+
+		// Deep Passenger-Driver Interaction Panel (when passenger is onboard)
+		const UPassengerInteractionComponent* PassComp = Taxi ? Taxi->GetPassengerInteraction() : nullptr;
+		if (PassComp && PassComp->IsPassengerOnboard())
+		{
+			const float PanelX = MisX;
+			float CurY = 108.0f;
+
+			// 1) Archetype, Sabır (Patience) & Konfor (Comfort) Progress Bars
+			DrawBezelBox(PanelX, CurY, MisW, 92.0f, FLinearColor(0.014f, 0.018f, 0.028f, 0.90f), FLinearColor(0.95f, 0.72f, 0.08f, 0.85f), 1.5f);
+			DrawText(FString::Printf(TEXT("YOLCU PROFİLİ: %s"), *PassComp->GetArchetypeDisplayName()),
+				FLinearColor(1.0f, 0.86f, 0.28f), PanelX + 12.0f, CurY + 8.0f, Font, 0.92f);
+			DrawText(PassComp->GetArchetypeTraitSummary(),
+				FLinearColor(0.72f, 0.80f, 0.88f), PanelX + 12.0f, CurY + 30.0f, Font, 0.78f);
+
+			auto DrawMeterBar = [&](float BX, float BY, const TCHAR* Label, float Pct)
+			{
+				const float Ratio = FMath::Clamp(Pct / 100.0f, 0.0f, 1.0f);
+				const FLinearColor BarCol = (Ratio > 0.65f) ? FLinearColor(0.18f, 0.92f, 0.42f)
+					: (Ratio > 0.35f) ? FLinearColor(1.0f, 0.75f, 0.12f) : FLinearColor(1.0f, 0.22f, 0.18f);
+				DrawText(FString::Printf(TEXT("%s: %.0f%%"), Label, Pct), FLinearColor::White, BX, BY, Font, 0.82f);
+				DrawBezelBox(BX, BY + 19.0f, 188.0f, 11.0f, FLinearColor(0.06f, 0.07f, 0.09f, 1.0f), FLinearColor(0.28f, 0.32f, 0.38f, 1.0f), 1.0f);
+				DrawRect(BarCol, BX + 1.0f, BY + 20.0f, 186.0f * Ratio, 9.0f);
+			};
+
+			DrawMeterBar(PanelX + 12.0f,  CurY + 52.0f, TEXT("SABIR"),  PassComp->GetPatienceScore());
+			DrawMeterBar(PanelX + 224.0f, CurY + 52.0f, TEXT("KONFOR"), PassComp->GetComfortScore());
+			CurY += 100.0f;
+
+			// 2) Turkish Passenger Speech Bubble
+			if (PassComp->GetSpeechTimeRemaining() > 0.0f && !PassComp->GetCurrentSpeechBubble().IsEmpty())
+			{
+				DrawBezelBox(PanelX, CurY, MisW, 56.0f, FLinearColor(0.04f, 0.06f, 0.10f, 0.94f), FLinearColor(0.35f, 0.88f, 1.0f, 0.95f), 1.5f);
+				DrawText(TEXT("💬 YOLCU:"), FLinearColor(0.35f, 0.88f, 1.0f), PanelX + 12.0f, CurY + 6.0f, Font, 0.82f);
+				DrawText(FString::Printf(TEXT("\"%s\""), *PassComp->GetCurrentSpeechBubble()),
+					FLinearColor(0.98f, 0.96f, 0.88f), PanelX + 12.0f, CurY + 27.0f, Font, 0.84f);
+				CurY += 64.0f;
+			}
+
+			// 3) Active Live Request Prompt ([1]/[2]/[3] Dialogue Choice OR [V] Window Request)
+			const EPassengerLiveRequestType ReqType = PassComp->GetActiveRequestType();
+			if (ReqType == EPassengerLiveRequestType::DialogueChoice)
+			{
+				const TArray<FPassengerDialogueOption>& Opts = PassComp->GetDialogueOptions();
+				const float BoxH = 34.0f + Opts.Num() * 24.0f;
+				DrawBezelBox(PanelX, CurY, MisW, BoxH, FLinearColor(0.08f, 0.05f, 0.01f, 0.94f), FLinearColor(1.0f, 0.78f, 0.12f, 1.0f), 2.0f);
+				DrawText(FString::Printf(TEXT("YANIT SEÇİN ([1] / [2] / [3])  —  Kalan Süre: %.0f sn"), PassComp->GetRequestTimeRemaining()),
+					FLinearColor(1.0f, 0.84f, 0.18f), PanelX + 12.0f, CurY + 7.0f, Font, 0.85f);
+				for (int32 i = 0; i < Opts.Num(); ++i)
+				{
+					DrawText(Opts[i].OptionText, FLinearColor(0.94f, 0.96f, 1.0f), PanelX + 14.0f, CurY + 31.0f + i * 22.0f, Font, 0.82f);
+				}
+			}
+			else if (ReqType == EPassengerLiveRequestType::CloseWindowDraft || ReqType == EPassengerLiveRequestType::OpenWindowFresh)
+			{
+				DrawBezelBox(PanelX, CurY, MisW, 54.0f, FLinearColor(0.10f, 0.03f, 0.02f, 0.94f), FLinearColor(1.0f, 0.52f, 0.14f, 1.0f), 2.0f);
+				DrawText(FString::Printf(TEXT("YOLCU İSTEĞİ (%.0f sn):"), PassComp->GetRequestTimeRemaining()),
+					FLinearColor(1.0f, 0.65f, 0.20f), PanelX + 12.0f, CurY + 6.0f, Font, 0.85f);
+				const FString ActStr = (ReqType == EPassengerLiveRequestType::CloseWindowDraft)
+					? TEXT("[V] Tuşuna Basarak Camı KAPATIN (Bahşiş & Konfor Bonusu)")
+					: TEXT("[V] Tuşuna Basarak Camı AÇIN (Bahşiş & Konfor Bonusu)");
+				DrawText(ActStr, FLinearColor(0.28f, 0.98f, 0.52f), PanelX + 12.0f, CurY + 28.0f, Font, 0.84f);
 			}
 		}
 	}
@@ -337,16 +402,16 @@ void AIstanbulTaxiHUD::DrawHUD()
 	}
 
 	// =========================================================================
-	// 5. BOTTOM-LEFT: COMPACT CONTROLS BAR
+	// 5. BOTTOM-LEFT: COMPACT CONTROLS BAR (60% Keyboard Friendly)
 	// =========================================================================
 	const float HelpY = ScreenH - 96.0f;
-	DrawBezelBox(20.0f, HelpY, 545.0f, 72.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.82f), FLinearColor(0.35f, 0.40f, 0.46f, 0.7f));
-	DrawText(TEXT("[WASD] Sürüş  |  [Space] El Freni  |  [H] Korna  |  [C] İç/Dış Kamera  |  [R] Düzelt"),
-		FLinearColor(0.92f, 0.94f, 0.98f), 32.0f, HelpY + 8.0f, Font, 0.86f);
-	DrawText(TEXT("[T] Taksimetre Aç/Kapat  |  [P] Beklet  |  [Y] Tarife (Sarı/Turkuaz/8+1/Siyah)"),
-		FLinearColor(0.98f, 0.82f, 0.22f), 32.0f, HelpY + 28.0f, Font, 0.86f);
+	DrawBezelBox(20.0f, HelpY, 595.0f, 72.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.82f), FLinearColor(0.35f, 0.40f, 0.46f, 0.7f));
+	DrawText(TEXT("[WASD] Sürüş  |  [Space] El Freni (Yokuş Kalkış)  |  [H] Korna  |  [C] Kamera  |  [R] Düzelt"),
+		FLinearColor(0.92f, 0.94f, 0.98f), 32.0f, HelpY + 8.0f, Font, 0.85f);
+	DrawText(TEXT("[T] Taksimetre Aç/Kapat  |  [P] Beklet  |  [Y] Tarife  |  [1/2/3] Yolcu Diyalog Seçimi"),
+		FLinearColor(0.98f, 0.82f, 0.22f), 32.0f, HelpY + 28.0f, Font, 0.85f);
 	DrawText(TEXT("[E] Yolcu Görevi  |  [V] Cam Aç/Kapat  |  [N] Ezan Oku  |  [M] Saati +1.5s İlerlet"),
-		FLinearColor(0.75f, 0.88f, 0.98f), 32.0f, HelpY + 48.0f, Font, 0.86f);
+		FLinearColor(0.75f, 0.88f, 0.98f), 32.0f, HelpY + 48.0f, Font, 0.85f);
 
 	// =========================================================================
 	// 6. TOAST NOTIFICATIONS

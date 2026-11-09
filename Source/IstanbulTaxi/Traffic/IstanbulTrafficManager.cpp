@@ -434,6 +434,6 @@ void AIstanbulTrafficManager::PopulateIstanbulTraffic(const FVector& Origin,
 	};
 
 	// Delivery van & hazard sedan double-parked in the narrow cobblestone alley (player must squeeze through!)
-	SpawnDoubleParked(ETrafficVehicleType::DeliveryVan, FVector(4500.0f, 3850.0f, 15.0f),  88.0f);
-	SpawnDoubleParked(ETrafficVehicleType::Sedan,       FVector(12500.0f, 7680.0f, 420.0f), 4.0f);
+	SpawnDoubleParked(ETrafficVehicleType::DeliveryVan, FVector(3740.0f, 4850.0f, 675.0f),   88.0f);
+	SpawnDoubleParked(ETrafficVehicleType::Sedan,       FVector(12500.0f, 7680.0f, 1185.0f),  4.0f);
 }

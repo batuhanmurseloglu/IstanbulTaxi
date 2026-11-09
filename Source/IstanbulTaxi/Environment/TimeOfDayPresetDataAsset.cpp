@@ -21,15 +21,15 @@ UTimeOfDayPresetDataAsset::UTimeOfDayPresetDataAsset()
 	};
 
 	// 8 canonical Istanbul time phases (sorted by KeyHour ascending).
-	// Balanced in Lux (0.5 .. 12.0 Lux) with locked EV100 = 1.0 exposure so scenes never wash out to white.
-	Add(IstanbulTaxiTags::Time_LateNight,   2.5f,   0.35f, FLinearColor(0.20f, 0.28f, 0.52f), 0.35f, 0.018f, FLinearColor(0.05f, 0.07f, 0.14f),  0.1f, 1.0f, 0.25f, 0.35f);
-	Add(IstanbulTaxiTags::Time_Dawn,        5.5f,   2.80f, FLinearColor(0.68f, 0.74f, 0.96f), 0.65f, 0.026f, FLinearColor(0.35f, 0.45f, 0.68f),  0.0f, 0.6f, 0.35f, 0.20f);
-	Add(IstanbulTaxiTags::Time_MorningRush, 8.25f,  7.50f, FLinearColor(1.00f, 0.88f, 0.74f), 0.95f, 0.020f, FLinearColor(0.68f, 0.64f, 0.58f), -0.1f, 0.0f, 0.10f, 0.00f);
-	Add(IstanbulTaxiTags::Time_Midday,     12.75f, 10.50f, FLinearColor(1.00f, 0.97f, 0.92f), 1.10f, 0.010f, FLinearColor(0.62f, 0.74f, 0.90f), -0.2f, 0.0f, 0.00f, 0.00f);
-	Add(IstanbulTaxiTags::Time_Ikindi,     16.0f,   8.50f, FLinearColor(1.00f, 0.90f, 0.76f), 1.00f, 0.014f, FLinearColor(0.72f, 0.68f, 0.62f), -0.1f, 0.0f, 0.05f, 0.00f);
-	Add(IstanbulTaxiTags::Time_GoldenHour, 18.5f,   4.80f, FLinearColor(1.00f, 0.62f, 0.32f), 0.80f, 0.022f, FLinearColor(0.85f, 0.50f, 0.30f),  0.0f, 0.3f, 0.35f, 0.40f);
-	Add(IstanbulTaxiTags::Time_Dusk,       20.0f,   1.40f, FLinearColor(0.42f, 0.52f, 0.86f), 0.50f, 0.018f, FLinearColor(0.18f, 0.24f, 0.42f),  0.1f, 1.0f, 0.85f, 1.00f);
-	Add(IstanbulTaxiTags::Time_Night,      22.5f,   0.50f, FLinearColor(0.24f, 0.32f, 0.56f), 0.40f, 0.015f, FLinearColor(0.08f, 0.10f, 0.18f),  0.1f, 1.0f, 0.75f, 1.00f);
+	// Balanced against AEM_Manual (AutoExposureBias = -4.0f + ExposureCompensation) so the viewport never washes out to white.
+	Add(IstanbulTaxiTags::Time_LateNight,   2.5f,   2.80f, FLinearColor(0.20f, 0.28f, 0.52f), 2.40f, 0.018f, FLinearColor(0.05f, 0.07f, 0.14f),  1.6f, 1.0f, 0.25f, 0.35f);
+	Add(IstanbulTaxiTags::Time_Dawn,        5.5f,  16.00f, FLinearColor(0.68f, 0.74f, 0.96f), 3.60f, 0.026f, FLinearColor(0.35f, 0.45f, 0.68f),  0.8f, 0.6f, 0.35f, 0.20f);
+	Add(IstanbulTaxiTags::Time_MorningRush, 8.25f, 36.00f, FLinearColor(1.00f, 0.88f, 0.74f), 4.80f, 0.020f, FLinearColor(0.68f, 0.64f, 0.58f),  0.2f, 0.0f, 0.10f, 0.00f);
+	Add(IstanbulTaxiTags::Time_Midday,     12.75f, 48.00f, FLinearColor(1.00f, 0.97f, 0.92f), 5.50f, 0.010f, FLinearColor(0.62f, 0.74f, 0.90f),  0.0f, 0.0f, 0.00f, 0.00f);
+	Add(IstanbulTaxiTags::Time_Ikindi,     16.0f,  38.00f, FLinearColor(1.00f, 0.90f, 0.76f), 4.80f, 0.014f, FLinearColor(0.72f, 0.68f, 0.62f),  0.1f, 0.0f, 0.05f, 0.00f);
+	Add(IstanbulTaxiTags::Time_GoldenHour, 18.5f,  22.00f, FLinearColor(1.00f, 0.62f, 0.32f), 3.80f, 0.022f, FLinearColor(0.85f, 0.50f, 0.30f),  0.6f, 0.3f, 0.35f, 0.40f);
+	Add(IstanbulTaxiTags::Time_Dusk,       20.0f,   6.50f, FLinearColor(0.42f, 0.52f, 0.86f), 2.80f, 0.018f, FLinearColor(0.18f, 0.24f, 0.42f),  1.3f, 1.0f, 0.85f, 1.00f);
+	Add(IstanbulTaxiTags::Time_Night,      22.5f,   3.20f, FLinearColor(0.24f, 0.32f, 0.56f), 2.50f, 0.015f, FLinearColor(0.08f, 0.10f, 0.18f),  1.5f, 1.0f, 0.75f, 1.00f);
 }
 
 FTimeOfDayPhaseSample UTimeOfDayPresetDataAsset::EvaluateAtHour(float Hour, FGameplayTag& OutActivePhaseTag) const
