@@ -219,6 +219,49 @@ void FIstanbulMeshUtils::AppendRoadRibbonWithSidewalks(FIstanbulMeshSectionData&
 	}
 }
 
+void FIstanbulMeshUtils::AppendJunctionPatch(FIstanbulMeshSectionData& OutRoadSection, FIstanbulMeshSectionData& OutSidewalkSection,
+	const FVector& NodeCenter, float RadiusCm, float CurbHeightCm,
+	const FLinearColor& RoadColor, const FLinearColor& SidewalkColor, bool bAddCrosswalkStrips)
+{
+	const float R = FMath::Max(RadiusCm, 250.0f);
+	// Slightly raised (+0.8cm) octagonal junction pad so overlapping ribbon seams are 100% flush and invisible
+	AppendCylinder(OutRoadSection, FTransform(FRotator::ZeroRotator, NodeCenter + FVector(0.0f, 0.0f, 0.4f)),
+		R, 0.4f, 16, RoadColor * 1.03f, true);
+
+	// 4 rounded curb corner returns (3-6m radius, 4.5m default) at the 4 quadrant corners
+	const float CornerDist = R + 210.0f;
+	const float CornerRadius = 420.0f; // 4.2m rounded curb return radius (within 3-6m spec)
+	for (int32 qx = -1; qx <= 1; qx += 2)
+	{
+		for (int32 qy = -1; qy <= 1; qy += 2)
+		{
+			const FVector CornerCenter = NodeCenter + FVector(qx * CornerDist, qy * CornerDist, CurbHeightCm * 0.5f);
+			AppendCylinder(OutSidewalkSection, FTransform(FRotator::ZeroRotator, CornerCenter),
+				CornerRadius, CurbHeightCm * 0.5f, 12, SidewalkColor * 0.96f, true);
+		}
+	}
+
+	if (bAddCrosswalkStrips)
+	{
+		const FLinearColor ZebraWhite(0.92f, 0.92f, 0.90f, 1.0f);
+		const int32 NumStripes = 5;
+		const float StripeSpacing = 72.0f;
+		const float CrossDist = R * 0.78f;
+
+		for (int32 s = -NumStripes / 2; s <= NumStripes / 2; ++s)
+		{
+			const float Offset = s * StripeSpacing;
+			// North & South zebra crosswalk bars
+			AppendBeveledBox(OutRoadSection,
+				FTransform(FRotator::ZeroRotator, NodeCenter + FVector(CrossDist, Offset, 1.2f)),
+				FVector(95.0f, 18.0f, 0.6f), 0.2f, ZebraWhite);
+			AppendBeveledBox(OutRoadSection,
+				FTransform(FRotator::ZeroRotator, NodeCenter + FVector(-CrossDist, Offset, 1.2f)),
+				FVector(95.0f, 18.0f, 0.6f), 0.2f, ZebraWhite);
+		}
+	}
+}
+
 void FIstanbulMeshUtils::AppendCatenaryCable(FIstanbulMeshSectionData& OutSection, const FVector& Start, const FVector& End,
 	float SagCm, float ThicknessCm, int32 Segments, const FLinearColor& Color)
 {

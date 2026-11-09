@@ -2,12 +2,14 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Environment/IstanbulBuildingBlock.h"
 #include "TestSceneBuilder.generated.h"
 
 class UProceduralMeshComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class UPointLightComponent;
 class AIstanbulTrafficManager;
+class AIstanbulBuildingBlock;
 
 /**
  * Data-driven specification for a single Istanbul road or alley segment.
@@ -80,6 +82,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Istanbul|Geography")
 	TArray<FIstanbulRoadSegmentSpec> RoadSegments;
 
+	/** Data-driven district zone specs (Waterfront, WideAvenue, Plaza, NarrowAlley, HillResidential). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Istanbul|Geography")
+	TArray<FIstanbulDistrictSpec> Districts;
+
+	/** Data-driven architectural building specs spawned via AIstanbulBuildingBlock. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Istanbul|Geography")
+	TArray<FIstanbulBuildingSpec> BuildingSpecs;
+
 	/** Curb height default (cm) for generated sidewalks. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Istanbul|Geography")
 	float DefaultCurbHeightCm = 20.0f;
@@ -94,6 +104,17 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Istanbul|Scene")
 	void BuildPrototypeScene();
+
+	/**
+	 * Automated Quality Gate: validates node Z continuity, minimum free roadway width (>= 3.5m),
+	 * maximum slope grade (<= 18.0 deg), and building/cumba corridor clearance. Returns true if 0 violations.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Istanbul|Validation")
+	bool ValidateNetwork();
+
+	int32 GetSpawnedActorCount() const { return SpawnedActorCount; }
+	int32 GetSpawnedHISMInstanceCount() const { return SpawnedHISMInstanceCount; }
+	int32 GetSpawnedProcMeshSectionCount() const { return SpawnedProcMeshSectionCount; }
 
 	static const FName GeneratedActorTag;
 
@@ -125,6 +146,12 @@ protected:
 
 private:
 	void PopulateDefaultRoadSpecs(const FVector& Origin);
+	void PopulateDefaultDistrictsAndBuildings(const FVector& Origin);
+	int32 SolveAndBuildJunctions(struct FIstanbulMeshSectionData& AsphaltRoadSection,
+		struct FIstanbulMeshSectionData& CobbleRoadSection,
+		struct FIstanbulMeshSectionData& SidewalkSection,
+		const FLinearColor& AsphaltCol, const FLinearColor& CobbleCol, const FLinearColor& SidewalkCol);
+	void SpawnWorldBoundaryBlockers(const FVector& Origin);
 
 	AActor* SpawnShape(const TCHAR* ShapePath, const FString& Label, const FVector& Location,
 		const FRotator& Rotation, const FVector& Scale, const FLinearColor& Color,
@@ -153,5 +180,6 @@ private:
 	TArray<FVector> StreetLampLightWorldPositions;
 	int32 SpawnedActorCount = 0;
 	int32 SpawnedHISMInstanceCount = 0;
+	int32 SpawnedProcMeshSectionCount = 0;
 	bool bBuilt = false;
 };

@@ -55,6 +55,14 @@ public:
 		const FVector& Start, const FVector& End, float RoadWidthCm, float SidewalkWidthCm, float SidewalkHeightCm,
 		const FLinearColor& RoadColor, const FLinearColor& SidewalkColor, int32 Subdivisions = 8);
 
+	/**
+	 * Appends a junction patch (T, cross, or Y intersection) at a shared node with rounded curb corner returns (3-6m radius),
+	 * matched sidewalk elevation, and white zebra crosswalk strips.
+	 */
+	static void AppendJunctionPatch(FIstanbulMeshSectionData& OutRoadSection, FIstanbulMeshSectionData& OutSidewalkSection,
+		const FVector& NodeCenter, float RadiusCm, float CurbHeightCm,
+		const FLinearColor& RoadColor, const FLinearColor& SidewalkColor, bool bAddCrosswalkStrips = true);
+
 	/** Appends a sagging parabolic catenary cable between Start and End. */
 	static void AppendCatenaryCable(FIstanbulMeshSectionData& OutSection, const FVector& Start, const FVector& End,
 		float SagCm, float ThicknessCm, int32 Segments, const FLinearColor& Color);

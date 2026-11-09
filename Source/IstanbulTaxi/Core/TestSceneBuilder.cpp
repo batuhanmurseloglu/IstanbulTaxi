@@ -214,6 +214,7 @@ void ATestSceneBuilder::RebuildScene()
 	StreetLampLightWorldPositions.Reset();
 	SpawnedActorCount = 0;
 	SpawnedHISMInstanceCount = 0;
+	SpawnedProcMeshSectionCount = 0;
 	bBuilt = false;
 
 	BuildPrototypeScene();
@@ -223,17 +224,58 @@ void ATestSceneBuilder::PopulateDefaultRoadSpecs(const FVector& Origin)
 {
 	RoadSegments.Reset();
 
-	// 1. Eminönü -> Karaköy / Beşiktaş Waterfront Boulevard (420m long, 22m wide, 0° flat coastal artery)
+	// =========================================================================
+	// 1. EMINÖNÜ -> SİRKECİ -> SULTANAHMET COASTAL & TRAM AVENUE (Z = 0)
+	// Subdivided at exact junction nodes so every intersection shares identical (X,Y,Z).
+	// =========================================================================
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
-		TEXT("Blvd_EminonuWaterfront"),
+		TEXT("Blvd_Eminonu_West"),
 		Origin + FVector(-4000.0f, 0.0f, 0.0f),
-		Origin + FVector(38000.0f, 0.0f, 0.0f),
+		Origin + FVector(3500.0f, 0.0f, 0.0f),
 		22.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
 
-	// 2. Galata Bridge Approach Ramp & Two-Level Galata Bridge Deck across the Golden Horn (Haliç)
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_Eminonu_Mid1"),
+		Origin + FVector(3500.0f, 0.0f, 0.0f),
+		Origin + FVector(7200.0f, 0.0f, 0.0f),
+		22.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_Eminonu_Mid2"),
+		Origin + FVector(7200.0f, 0.0f, 0.0f),
+		Origin + FVector(8800.0f, 0.0f, 0.0f),
+		22.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_Eminonu_Mid3"),
+		Origin + FVector(8800.0f, 0.0f, 0.0f),
+		Origin + FVector(16800.0f, 0.0f, 0.0f),
+		22.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_Eminonu_East"),
+		Origin + FVector(16800.0f, 0.0f, 0.0f),
+		Origin + FVector(20500.0f, 0.0f, 0.0f),
+		22.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_Sirkeci_Avenue"),
+		Origin + FVector(20500.0f, 0.0f, 0.0f),
+		Origin + FVector(24800.0f, 0.0f, 0.0f),
+		20.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Blvd_BridgeApproach_East"),
+		Origin + FVector(24800.0f, 0.0f, 0.0f),
+		Origin + FVector(38000.0f, 0.0f, 0.0f),
+		20.0f, DefaultCurbHeightCm, TEXT("Surface_Asphalt"), false));
+
+	// =========================================================================
+	// 2. GALATA BRIDGE APPROACH & TWO-LEVEL GOLDEN HORN DECK
+	// =========================================================================
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("Bridge_GalataApproach"),
-		Origin + FVector(8800.0f, -1100.0f, 0.0f),
+		Origin + FVector(8800.0f, 0.0f, 0.0f),
 		Origin + FVector(8800.0f, -3600.0f, 260.0f),
 		16.0f, 22.0f, TEXT("Surface_Asphalt"), false));
 
@@ -243,44 +285,90 @@ void ATestSceneBuilder::PopulateDefaultRoadSpecs(const FVector& Origin)
 		Origin + FVector(8800.0f, -11600.0f, 260.0f),
 		18.0f, 24.0f, TEXT("Surface_Asphalt"), false));
 
-	// 3. Dense Tarihi Yarımada Old-Town Irregular Grid (4.5-6.0m narrow cobblestone streets, T-junctions & dead-end alley)
+	// =========================================================================
+	// 3. LOOP 1 & LOOP 2: TARİHİ YARIMADA (SİRKECİ -> SULTANAHMET PLAZA GRID)
+	// =========================================================================
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("OldTown_WestAlley"),
-		Origin + FVector(7200.0f, 1100.0f, 0.0f),
-		Origin + FVector(7200.0f, 4800.0f, 0.0f),
+		Origin + FVector(7200.0f, 0.0f, 0.0f),
+		Origin + FVector(7200.0f, 3800.0f, 0.0f),
 		5.4f, 18.0f, TEXT("Surface_Cobblestone"), true));
 
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
-		TEXT("OldTown_CrossSpine"),
+		TEXT("OldTown_WestAlley_North"),
 		Origin + FVector(7200.0f, 3800.0f, 0.0f),
-		Origin + FVector(16800.0f, 3800.0f, 0.0f),
+		Origin + FVector(7200.0f, 4800.0f, 0.0f),
+		5.0f, 18.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("OldTown_CrossSpine_West"),
+		Origin + FVector(7200.0f, 3800.0f, 0.0f),
+		Origin + FVector(11600.0f, 3800.0f, 0.0f),
 		5.8f, 18.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("OldTown_CrossSpine_Mid"),
+		Origin + FVector(11600.0f, 3800.0f, 0.0f),
+		Origin + FVector(13500.0f, 3800.0f, 0.0f),
+		5.8f, 18.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("OldTown_CrossSpine_Plaza"),
+		Origin + FVector(13500.0f, 3800.0f, 0.0f),
+		Origin + FVector(16800.0f, 3800.0f, 0.0f),
+		6.0f, 18.0f, TEXT("Surface_Cobblestone"), false));
 
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("OldTown_EastReturn"),
 		Origin + FVector(16800.0f, 3800.0f, 0.0f),
-		Origin + FVector(16800.0f, 1100.0f, 0.0f),
+		Origin + FVector(16800.0f, 0.0f, 0.0f),
 		5.4f, 18.0f, TEXT("Surface_Cobblestone"), true));
 
-	// Dead-end alley (Çıkmaz Sokak) branching off OldTown_CrossSpine at T-junction X=+116m
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("OldTown_DeadEndAlley"),
 		Origin + FVector(11600.0f, 3800.0f, 0.0f),
 		Origin + FVector(11600.0f, 5650.0f, 0.0f),
 		4.6f, 20.0f, TEXT("Surface_Cobblestone"), false));
 
-	// 4. Steep Cihangir / Galata Backstreets (3 inclined streets between 12.5° and 17.6° + switchback + midpoint stop-sign)
+	// Sirkeci -> Sultanahmet Wide Avenue Loop Extension (completes Loop 2)
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Sultanahmet_EastAvenue"),
+		Origin + FVector(16800.0f, 3800.0f, 0.0f),
+		Origin + FVector(24800.0f, 3800.0f, 0.0f),
+		14.5f, 20.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Sultanahmet_SouthConnector"),
+		Origin + FVector(24800.0f, 3800.0f, 0.0f),
+		Origin + FVector(24800.0f, 0.0f, 0.0f),
+		14.5f, 20.0f, TEXT("Surface_Asphalt"), false));
+
+	// =========================================================================
+	// 4. LOOP 3: GALATA / CİHANGİR STEEP HILLS (13.2° - 17.5°) & UPPER RIDGE
+	// =========================================================================
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Slope1_BaseApron"),
+		Origin + FVector(3500.0f, 0.0f, 0.0f),
+		Origin + FVector(3500.0f, 2100.0f, 0.0f),
+		8.2f, 20.0f, TEXT("Surface_Cobblestone"), false));
+
 	// Slope 1: West Galata Climb (~13.2° grade: 55m horizontal run, +12.9m vertical rise to Z=+1290cm)
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("Slope1_GalataClimb_13Deg"),
-		Origin + FVector(3500.0f, 1600.0f, 0.0f),
-		Origin + FVector(3500.0f, 7100.0f, 1290.0f),
+		Origin + FVector(3500.0f, 2100.0f, 0.0f),
+		Origin + FVector(3500.0f, 7600.0f, 1290.0f),
 		8.2f, 20.0f, TEXT("Surface_Cobblestone"), false));
 
-	// Upper Galata / Sultanahmet Ridge Connector (Z = +1290cm)
+	// Upper Galata / Sultanahmet Ridge Connector (Z = +1290cm, split at switchback node X=+118m)
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
-		TEXT("UpperRidge_Connector"),
+		TEXT("UpperRidge_West"),
 		Origin + FVector(3500.0f, 7600.0f, 1290.0f),
+		Origin + FVector(11800.0f, 7600.0f, 1290.0f),
+		8.8f, 22.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("UpperRidge_East"),
+		Origin + FVector(11800.0f, 7600.0f, 1290.0f),
 		Origin + FVector(20500.0f, 7600.0f, 1290.0f),
 		8.8f, 22.0f, TEXT("Surface_Cobblestone"), false));
 
@@ -291,7 +379,7 @@ void ATestSceneBuilder::PopulateDefaultRoadSpecs(const FVector& Origin)
 		Origin + FVector(13500.0f, 6600.0f, 885.0f),
 		6.0f, 20.0f, TEXT("Surface_Cobblestone"), true));
 
-	// Slope 2 Switchback Upper Leg (~15.4° grade from midpoint stop-sign landing Z=+885cm up to Upper Ridge Z=+1290cm)
+	// Slope 2 Switchback Upper Leg (~11.6° grade from midpoint stop-sign landing Z=+885cm up to Upper Ridge Z=+1290cm)
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("Slope2_CihangirSwitchback_15Deg_LegB"),
 		Origin + FVector(13500.0f, 6600.0f, 885.0f),
@@ -301,9 +389,337 @@ void ATestSceneBuilder::PopulateDefaultRoadSpecs(const FVector& Origin)
 	// Slope 3: Tophane / Beşiktaş Descent (~14.0° grade: 52m run from Z=+1290cm back to Z=0)
 	RoadSegments.Add(FIstanbulRoadSegmentSpec(
 		TEXT("Slope3_TophaneDescent_14Deg"),
-		Origin + FVector(20500.0f, 7100.0f, 1290.0f),
-		Origin + FVector(20500.0f, 1900.0f, 0.0f),
+		Origin + FVector(20500.0f, 7600.0f, 1290.0f),
+		Origin + FVector(20500.0f, 2400.0f, 0.0f),
 		8.2f, 20.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Slope3_BaseApron"),
+		Origin + FVector(20500.0f, 2400.0f, 0.0f),
+		Origin + FVector(20500.0f, 0.0f, 0.0f),
+		8.2f, 20.0f, TEXT("Surface_Cobblestone"), false));
+}
+
+void ATestSceneBuilder::PopulateDefaultDistrictsAndBuildings(const FVector& Origin)
+{
+	Districts.Reset();
+	BuildingSpecs.Reset();
+
+	// 1. District Specifications (Task 1.1 & 1.2 Zoning Contrast)
+	{
+		FIstanbulDistrictSpec Waterfront;
+		Waterfront.DistrictName = TEXT("Eminönü - Karaköy Sahil Kordonu");
+		Waterfront.ZoneType = EIstanbulDistrictZoneType::Waterfront;
+		Waterfront.Bounds = FBox(Origin + FVector(-4500.0f, -12000.0f, -500.0f), Origin + FVector(38500.0f, 1500.0f, 1200.0f));
+		Waterfront.MinFloors = 4;
+		Waterfront.MaxFloors = 6;
+		Waterfront.Density = 0.65f;
+		Waterfront.FogDensityMultiplier = 1.15f;
+		Waterfront.AmbientWarmthBias = 0.12f;
+		Districts.Add(Waterfront);
+
+		FIstanbulDistrictSpec WideAve;
+		WideAve.DistrictName = TEXT("Sirkeci - Sultanahmet Tramvay Caddesi");
+		WideAve.ZoneType = EIstanbulDistrictZoneType::WideAvenue;
+		WideAve.Bounds = FBox(Origin + FVector(16500.0f, 1200.0f, -100.0f), Origin + FVector(26500.0f, 5200.0f, 2400.0f));
+		WideAve.MinFloors = 5;
+		WideAve.MaxFloors = 8;
+		WideAve.Density = 0.88f;
+		WideAve.FogDensityMultiplier = 0.95f;
+		WideAve.AmbientWarmthBias = 0.08f;
+		Districts.Add(WideAve);
+
+		FIstanbulDistrictSpec PlazaZone;
+		PlazaZone.DistrictName = TEXT("Sultanahmet Dikilitaş Meydanı");
+		PlazaZone.ZoneType = EIstanbulDistrictZoneType::Plaza;
+		PlazaZone.Bounds = FBox(Origin + FVector(13800.0f, 2400.0f, -100.0f), Origin + FVector(16600.0f, 5200.0f, 1800.0f));
+		PlazaZone.MinFloors = 3;
+		PlazaZone.MaxFloors = 5;
+		PlazaZone.Density = 0.45f;
+		PlazaZone.FogDensityMultiplier = 0.90f;
+		PlazaZone.AmbientWarmthBias = 0.15f;
+		Districts.Add(PlazaZone);
+
+		FIstanbulDistrictSpec NarrowAlleys;
+		NarrowAlleys.DistrictName = TEXT("Tarihi Yarımada Dar Ara Sokaklar");
+		NarrowAlleys.ZoneType = EIstanbulDistrictZoneType::NarrowAlley;
+		NarrowAlleys.Bounds = FBox(Origin + FVector(6500.0f, 1500.0f, -100.0f), Origin + FVector(16800.0f, 6200.0f, 1600.0f));
+		NarrowAlleys.MinFloors = 3;
+		NarrowAlleys.MaxFloors = 6;
+		NarrowAlleys.Density = 0.95f;
+		NarrowAlleys.FogDensityMultiplier = 1.28f;
+		NarrowAlleys.AmbientWarmthBias = 0.35f;
+		Districts.Add(NarrowAlleys);
+
+		FIstanbulDistrictSpec HillZone;
+		HillZone.DistrictName = TEXT("Galata & Cihangir Yokuşları");
+		HillZone.ZoneType = EIstanbulDistrictZoneType::HillResidential;
+		HillZone.Bounds = FBox(Origin + FVector(2000.0f, 2000.0f, 0.0f), Origin + FVector(22000.0f, 11500.0f, 3800.0f));
+		HillZone.MinFloors = 4;
+		HillZone.MaxFloors = 7;
+		HillZone.Density = 0.92f;
+		HillZone.FogDensityMultiplier = 1.18f;
+		HillZone.AmbientWarmthBias = 0.28f;
+		Districts.Add(HillZone);
+	}
+
+	// 2. Batched AIstanbulBuildingBlock Specs (placed outside all road corridors + sidewalk clearance >= 220cm)
+	// Row A: Sirkeci - Sultanahmet Wide Avenue North Facade (5-7 story buildings, shopfronts, awnings, Turkish shop signs)
+	for (int32 i = 0; i < 4; ++i)
+	{
+		FIstanbulBuildingSpec Spec;
+		Spec.BaseLocation = Origin + FVector(18400.0f + i * 1650.0f, 5450.0f, 0.0f);
+		Spec.YawDegrees = -90.0f;
+		Spec.FrontageWidthM = 15.2f;
+		Spec.DepthM = 12.5f;
+		Spec.Floors = 5 + (i % 3);
+		Spec.bHasCumba = (i % 2 == 1);
+		Spec.MaxAllowedProjectionCm = 85.0f;
+		Spec.bPitchedRoof = (i % 2 == 0);
+		Spec.GroundFloorType = EIstanbulGroundFloorType::ShopfrontAwning;
+		Spec.StyleSeed = Seed + 101 + i * 37;
+		BuildingSpecs.Add(Spec);
+	}
+
+	// Row B: Old-Town Narrow Alley Overhanging Cumba Row + Spanning Arched Gateway (>= 3.2m vertical clearance)
+	{
+		// Spanning arched gateway across OldTown_WestAlley at X=+72m, Y=+21.5m (road width 5.4m, arch clearance 3.9m >= 3.2m)
+		FIstanbulBuildingSpec ArchBuilding;
+		ArchBuilding.BaseLocation = Origin + FVector(5650.0f, 2150.0f, 0.0f);
+		ArchBuilding.YawDegrees = 0.0f;
+		ArchBuilding.FrontageWidthM = 12.0f;
+		ArchBuilding.DepthM = 11.0f;
+		ArchBuilding.Floors = 4;
+		ArchBuilding.bHasCumba = true;
+		ArchBuilding.MaxAllowedProjectionCm = 85.0f;
+		ArchBuilding.GroundFloorType = EIstanbulGroundFloorType::ShopfrontAwning;
+		ArchBuilding.bSpanAlleyGateway = true;
+		ArchBuilding.AlleySpanWidthM = 5.4f;
+		ArchBuilding.StyleSeed = Seed + 211;
+		BuildingSpecs.Add(ArchBuilding);
+
+		// Tightly packed Old-Town bitişik nizam row along OldTown_CrossSpine North side
+		for (int32 i = 0; i < 3; ++i)
+		{
+			FIstanbulBuildingSpec AlleySpec;
+			AlleySpec.BaseLocation = Origin + FVector(8350.0f + i * 1350.0f, 4950.0f, 0.0f);
+			AlleySpec.YawDegrees = -90.0f;
+			AlleySpec.FrontageWidthM = 12.2f;
+			AlleySpec.DepthM = 10.5f;
+			AlleySpec.Floors = 3 + (i % 3);
+			AlleySpec.bHasCumba = true;
+			AlleySpec.MaxAllowedProjectionCm = 90.0f;
+			AlleySpec.bPitchedRoof = true;
+			AlleySpec.GroundFloorType = EIstanbulGroundFloorType::ShopfrontAwning;
+			AlleySpec.StyleSeed = Seed + 307 + i * 43;
+			BuildingSpecs.Add(AlleySpec);
+		}
+	}
+}
+
+int32 ATestSceneBuilder::SolveAndBuildJunctions(FIstanbulMeshSectionData& AsphaltRoadSection,
+	FIstanbulMeshSectionData& CobbleRoadSection, FIstanbulMeshSectionData& SidewalkSection,
+	const FLinearColor& AsphaltCol, const FLinearColor& CobbleCol, const FLinearColor& SidewalkCol)
+{
+	// Group all segment endpoints within 50cm in 2D into shared junction nodes, unify Z elevation,
+	// and generate rounded curb corner returns (3-6m radius) + crosswalk zebra strips.
+	struct FJunctionNode
+	{
+		FVector Position = FVector::ZeroVector;
+		TArray<int32> SegmentIndices;
+		TArray<bool> bIsEndEndpoint;
+		float MaxRoadWidthM = 6.0f;
+		float MaxCurbHeightCm = 20.0f;
+		bool bAnyCobble = false;
+	};
+
+	TArray<FJunctionNode> Nodes;
+	const float SnapTolerance2DCm = 50.0f;
+
+	auto RegisterEndpoint = [&](int32 SegIdx, bool bEnd)
+	{
+		const FVector& Pt = bEnd ? RoadSegments[SegIdx].End : RoadSegments[SegIdx].Start;
+		for (FJunctionNode& Node : Nodes)
+		{
+			if (FVector::Dist2D(Node.Position, Pt) <= SnapTolerance2DCm)
+			{
+				Node.SegmentIndices.Add(SegIdx);
+				Node.bIsEndEndpoint.Add(bEnd);
+				Node.MaxRoadWidthM = FMath::Max(Node.MaxRoadWidthM, RoadSegments[SegIdx].WidthM);
+				Node.MaxCurbHeightCm = FMath::Max(Node.MaxCurbHeightCm, RoadSegments[SegIdx].SidewalkHeightCm);
+				if (RoadSegments[SegIdx].SurfaceType == TEXT("Surface_Cobblestone"))
+				{
+					Node.bAnyCobble = true;
+				}
+				return;
+			}
+		}
+		FJunctionNode NewNode;
+		NewNode.Position = Pt;
+		NewNode.SegmentIndices.Add(SegIdx);
+		NewNode.bIsEndEndpoint.Add(bEnd);
+		NewNode.MaxRoadWidthM = RoadSegments[SegIdx].WidthM;
+		NewNode.MaxCurbHeightCm = RoadSegments[SegIdx].SidewalkHeightCm;
+		NewNode.bAnyCobble = (RoadSegments[SegIdx].SurfaceType == TEXT("Surface_Cobblestone"));
+		Nodes.Add(NewNode);
+	};
+
+	for (int32 i = 0; i < RoadSegments.Num(); ++i)
+	{
+		RegisterEndpoint(i, false);
+		RegisterEndpoint(i, true);
+	}
+
+	int32 BuiltJunctionCount = 0;
+	for (FJunctionNode& Node : Nodes)
+	{
+		if (Node.SegmentIndices.Num() < 2)
+		{
+			continue;
+		}
+
+		// Enforce identical node elevation across all connected segments
+		float SumZ = 0.0f;
+		for (int32 k = 0; k < Node.SegmentIndices.Num(); ++k)
+		{
+			const FIstanbulRoadSegmentSpec& Seg = RoadSegments[Node.SegmentIndices[k]];
+			SumZ += Node.bIsEndEndpoint[k] ? Seg.End.Z : Seg.Start.Z;
+		}
+		const float UnifiedZ = SumZ / (float)Node.SegmentIndices.Num();
+		Node.Position.Z = UnifiedZ;
+
+		for (int32 k = 0; k < Node.SegmentIndices.Num(); ++k)
+		{
+			FIstanbulRoadSegmentSpec& Seg = RoadSegments[Node.SegmentIndices[k]];
+			if (Node.bIsEndEndpoint[k])
+			{
+				Seg.End.X = Node.Position.X;
+				Seg.End.Y = Node.Position.Y;
+				Seg.End.Z = UnifiedZ;
+			}
+			else
+			{
+				Seg.Start.X = Node.Position.X;
+				Seg.Start.Y = Node.Position.Y;
+				Seg.Start.Z = UnifiedZ;
+			}
+			const float Run2D = FVector::Dist2D(Seg.Start, Seg.End);
+			Seg.GradeDegrees = (Run2D > 1.0f)
+				? FMath::RadiansToDegrees(FMath::Atan2(FMath::Abs(Seg.End.Z - Seg.Start.Z), Run2D))
+				: 0.0f;
+		}
+
+		// Emit junction patch with rounded curb corner returns & crosswalks where >= 3 segments meet (T/Cross/Y)
+		const bool bIsMultiWayIntersection = (Node.SegmentIndices.Num() >= 3);
+		const float PatchRadiusCm = FMath::Clamp(Node.MaxRoadWidthM * 48.0f, 300.0f, 600.0f);
+		FIstanbulMeshUtils::AppendJunctionPatch(
+			Node.bAnyCobble ? CobbleRoadSection : AsphaltRoadSection,
+			SidewalkSection,
+			Node.Position,
+			PatchRadiusCm,
+			Node.MaxCurbHeightCm,
+			Node.bAnyCobble ? CobbleCol : AsphaltCol,
+			SidewalkCol,
+			bIsMultiWayIntersection);
+		++BuiltJunctionCount;
+	}
+
+	return BuiltJunctionCount;
+}
+
+void ATestSceneBuilder::SpawnWorldBoundaryBlockers(const FVector& Origin)
+{
+	// Soft boundary blockers disguised as historic stone walls, municipal roadwork barriers, and gatehouse buildings
+	// so the player can never reach the void at the ends of generated geometry.
+	SpawnHistoricalStoneWall(TEXT("Boundary_WestBoulevardGate"),
+		Origin + FVector(-4150.0f, 0.0f, 180.0f), FRotator(0.0f, 90.0f, 0.0f), 26.0f, 3.6f);
+	SpawnHistoricalStoneWall(TEXT("Boundary_EastBoulevardGate"),
+		Origin + FVector(38150.0f, 0.0f, 180.0f), FRotator(0.0f, 90.0f, 0.0f), 26.0f, 3.6f);
+	SpawnHistoricalStoneWall(TEXT("Boundary_GalataBridgeSouthCap"),
+		Origin + FVector(8800.0f, -11750.0f, 440.0f), FRotator::ZeroRotator, 20.0f, 3.6f);
+	SpawnHistoricalStoneWall(TEXT("Boundary_DeadEndAlleyWall"),
+		Origin + FVector(11600.0f, 5780.0f, 160.0f), FRotator::ZeroRotator, 8.0f, 3.2f);
+	SpawnHistoricalStoneWall(TEXT("Boundary_WestAlleyNorthWall"),
+		Origin + FVector(7200.0f, 4920.0f, 160.0f), FRotator::ZeroRotator, 8.0f, 3.2f);
+}
+
+bool ATestSceneBuilder::ValidateNetwork()
+{
+	int32 ElevationMismatches = 0;
+	int32 WidthViolations = 0;
+	int32 GradeViolations = 0;
+	int32 BuildingIntersectionViolations = 0;
+
+	// 1. Check segment widths (>= 3.5m) and grades (<= 18.0 deg)
+	for (const FIstanbulRoadSegmentSpec& Seg : RoadSegments)
+	{
+		if (Seg.WidthM < 3.5f)
+		{
+			++WidthViolations;
+			UE_LOG(LogIstanbulTaxi, Warning, TEXT("ValidateNetwork: Segment '%s' free width %.2fm < 3.5m minimum!"),
+				*Seg.SegmentId.ToString(), Seg.WidthM);
+		}
+		if (Seg.GradeDegrees > 18.0f + KINDA_SMALL_NUMBER)
+		{
+			++GradeViolations;
+			UE_LOG(LogIstanbulTaxi, Warning, TEXT("ValidateNetwork: Segment '%s' grade %.2f deg > 18.0 deg maximum!"),
+				*Seg.SegmentId.ToString(), Seg.GradeDegrees);
+		}
+	}
+
+	// 2. Check shared node elevations across all connected segments
+	for (int32 i = 0; i < RoadSegments.Num(); ++i)
+	{
+		for (int32 j = i + 1; j < RoadSegments.Num(); ++j)
+		{
+			const FVector PtsA[2] = { RoadSegments[i].Start, RoadSegments[i].End };
+			const FVector PtsB[2] = { RoadSegments[j].Start, RoadSegments[j].End };
+			for (int32 a = 0; a < 2; ++a)
+			{
+				for (int32 b = 0; b < 2; ++b)
+				{
+					if (FVector::Dist2D(PtsA[a], PtsB[b]) <= 50.0f &&
+						FMath::Abs(PtsA[a].Z - PtsB[b].Z) > 1.0f)
+					{
+						++ElevationMismatches;
+						UE_LOG(LogIstanbulTaxi, Warning,
+							TEXT("ValidateNetwork: Node Z mismatch between '%s' (Z=%.1f) and '%s' (Z=%.1f)!"),
+							*RoadSegments[i].SegmentId.ToString(), PtsA[a].Z,
+							*RoadSegments[j].SegmentId.ToString(), PtsB[b].Z);
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Check building footprints (including Cumba overhang) against drivable road corridors
+	for (int32 bIdx = 0; bIdx < BuildingSpecs.Num(); ++bIdx)
+	{
+		const FIstanbulBuildingSpec& B = BuildingSpecs[bIdx];
+		const float EffectiveRadiusCm = FMath::Min(B.FrontageWidthM, B.DepthM) * 50.0f;
+		for (const FIstanbulRoadSegmentSpec& Seg : RoadSegments)
+		{
+			const FVector ClosestPt = FMath::ClosestPointOnSegment(B.BaseLocation, Seg.Start, Seg.End);
+			const float Dist2DCm = FVector::Dist2D(B.BaseLocation, ClosestPt);
+			const float MinSafeDistCm = (Seg.WidthM * 50.0f) + EffectiveRadiusCm - 25.0f;
+			if (Dist2DCm < MinSafeDistCm)
+			{
+				++BuildingIntersectionViolations;
+				UE_LOG(LogIstanbulTaxi, Warning,
+					TEXT("ValidateNetwork: BuildingSpec[%d] at (%.0f, %.0f) intrudes into road segment '%s' (Dist=%.0fcm < %.0fcm)!"),
+					bIdx, B.BaseLocation.X, B.BaseLocation.Y, *Seg.SegmentId.ToString(), Dist2DCm, MinSafeDistCm);
+			}
+		}
+	}
+
+	const int32 TotalViolations = ElevationMismatches + WidthViolations + GradeViolations + BuildingIntersectionViolations;
+	UE_LOG(LogIstanbulTaxi, Log,
+		TEXT("ATestSceneBuilder::ValidateNetwork() -> %s | Segments=%d, Buildings=%d | Violations=%d (ElevationMismatches=%d, WidthViolations=%d, GradeViolations=%d, BuildingIntersections=%d)"),
+		(TotalViolations == 0) ? TEXT("PASSED (0 violations)") : TEXT("FAILED"),
+		RoadSegments.Num(), BuildingSpecs.Num(), TotalViolations,
+		ElevationMismatches, WidthViolations, GradeViolations, BuildingIntersectionViolations);
+
+	return (TotalViolations == 0);
 }
 
 AActor* ATestSceneBuilder::SpawnShape(const TCHAR* ShapePath, const FString& Label, const FVector& Location,
@@ -532,19 +948,45 @@ void ATestSceneBuilder::SpawnGalataBridgeAndApproach(const FVector& Origin)
 
 void ATestSceneBuilder::SpawnOldTownSquareAndFountain(const FVector& SquareCenter)
 {
-	// Tarihi Yarımada small square (Meydan) with an Ottoman octagonal marble fountain centerpiece (Meydan Çeşmesi)
+	// Sultanahmet-style Plaza (Meydan) with an Ottoman octagonal marble fountain (Meydan Çeşmesi)
+	// AND an iconic Obelisk of Theodosius (Dikilitaş) centerpiece on a cobblestone apron!
 	const FLinearColor MarbleCol(0.86f, 0.84f, 0.78f);
 	const FLinearColor LeadCapCol(0.32f, 0.36f, 0.42f);
+	const FLinearColor AswanGraniteCol(0.76f, 0.52f, 0.46f);
+	const FLinearColor BronzeBlockCol(0.28f, 0.24f, 0.16f);
 
+	// Cobblestone plaza apron around the monuments (outside the 6m road lane)
+	const FVector NorthPlazaCenter = SquareCenter + FVector(0.0f, 920.0f, 0.0f);
+	SpawnBox(TEXT("SultanahmetPlaza_CobbleApron"), NorthPlazaCenter + FVector(0.0f, 0.0f, 6.0f),
+		FVector(24.0f, 11.0f, 0.12f), FLinearColor(0.29f, 0.28f, 0.26f), true, FRotator::ZeroRotator, TEXT("Surface_Cobblestone"));
+
+	// 1. Ottoman Octagonal Marble Fountain (Meydan Çeşmesi) on West side of Plaza
+	const FVector FountainPos = NorthPlazaCenter + FVector(-560.0f, 80.0f, 0.0f);
 	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Meydan_FountainBasin"),
-		SquareCenter + FVector(0.0f, 0.0f, 35.0f), FRotator::ZeroRotator,
+		FountainPos + FVector(0.0f, 0.0f, 35.0f), FRotator::ZeroRotator,
 		FVector(4.6f, 4.6f, 0.7f), MarbleCol, true);
 	SpawnShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), TEXT("Meydan_FountainKiosk"),
-		SquareCenter + FVector(0.0f, 0.0f, 195.0f), FRotator::ZeroRotator,
+		FountainPos + FVector(0.0f, 0.0f, 195.0f), FRotator::ZeroRotator,
 		FVector(2.8f, 2.8f, 2.6f), MarbleCol * 0.95f, true);
 	SpawnShape(TEXT("/Engine/BasicShapes/Cone.Cone"), TEXT("Meydan_FountainRoof"),
-		SquareCenter + FVector(0.0f, 0.0f, 385.0f), FRotator::ZeroRotator,
+		FountainPos + FVector(0.0f, 0.0f, 385.0f), FRotator::ZeroRotator,
 		FVector(3.8f, 3.8f, 1.5f), LeadCapCol, false);
+
+	// 2. Sultanahmet Dikilitaş (Obelisk of Theodosius) on East side of Plaza
+	const FVector ObeliskPos = NorthPlazaCenter + FVector(560.0f, 80.0f, 0.0f);
+	SpawnBox(TEXT("Dikilitas_SteppedPlinth"), ObeliskPos + FVector(0.0f, 0.0f, 45.0f),
+		FVector(3.4f, 3.4f, 0.9f), MarbleCol, true);
+	SpawnBox(TEXT("Dikilitas_ReliefPedestal"), ObeliskPos + FVector(0.0f, 0.0f, 175.0f),
+		FVector(2.4f, 2.4f, 1.7f), MarbleCol * 0.94f, true);
+	SpawnBox(TEXT("Dikilitas_BronzeSupports"), ObeliskPos + FVector(0.0f, 0.0f, 280.0f),
+		FVector(1.9f, 1.9f, 0.45f), BronzeBlockCol, false);
+	SpawnBox(TEXT("Dikilitas_LowerGraniteShaft"), ObeliskPos + FVector(0.0f, 0.0f, 680.0f),
+		FVector(1.55f, 1.55f, 7.6f), AswanGraniteCol, true);
+	SpawnBox(TEXT("Dikilitas_UpperGraniteShaft"), ObeliskPos + FVector(0.0f, 0.0f, 1340.0f),
+		FVector(1.18f, 1.18f, 5.8f), AswanGraniteCol * 1.04f, true);
+	SpawnShape(TEXT("/Engine/BasicShapes/Cone.Cone"), TEXT("Dikilitas_Pyramidion"),
+		ObeliskPos + FVector(0.0f, 0.0f, 1730.0f), FRotator(0.0f, 45.0f, 0.0f),
+		FVector(1.55f, 1.55f, 2.2f), AswanGraniteCol * 1.08f, false);
 }
 
 void ATestSceneBuilder::SpawnSlopeStopSignAndSwitchback(const FVector& Origin)
@@ -824,9 +1266,13 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	{
 		PopulateDefaultRoadSpecs(Origin);
 	}
+	if (Districts.Num() == 0 || BuildingSpecs.Num() == 0)
+	{
+		PopulateDefaultDistrictsAndBuildings(Origin);
+	}
 
 	// =========================================================================
-	// 2. DATA-DRIVEN CORRIDOR GENERATION FROM RoadSegments (Smooth Procedural Mesh)
+	// 2. DATA-DRIVEN CORRIDOR & JUNCTION SOLVER (Smooth Procedural Mesh)
 	// =========================================================================
 	FIstanbulMeshSectionData AsphaltRoadSection;
 	FIstanbulMeshSectionData SidewalkSection;
@@ -836,6 +1282,10 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	const FLinearColor AsphaltCol(0.08f, 0.085f, 0.095f);
 	const FLinearColor CobbleCol(0.26f, 0.25f, 0.24f);
 	const FLinearColor SidewalkCol(0.42f, 0.43f, 0.45f);
+
+	const int32 SolvedJunctionCount = SolveAndBuildJunctions(
+		AsphaltRoadSection, CobbleRoadSection, SidewalkSection,
+		AsphaltCol, CobbleCol, SidewalkCol);
 
 	float MinSlopeDeg = 90.0f;
 	float MaxSlopeDeg = 0.0f;
@@ -1039,6 +1489,23 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	SidewalkSection.CommitToComponent(CorridorProcMesh, 1, true, ProcMat);
 	CatenaryCableSection.CommitToComponent(CorridorProcMesh, 2, false, ProcMat);
 	CobbleRoadSection.CommitToComponent(CobblestoneProcMesh, 0, true, ProcMat);
+	SpawnedProcMeshSectionCount += 4;
+
+	// Spawn batched AIstanbulBuildingBlock for data-driven BuildingSpecs (with Cumbas, spanning alley arch, and shop signs)
+	if (BuildingSpecs.Num() > 0)
+	{
+		if (AIstanbulBuildingBlock* BBlock = W->SpawnActor<AIstanbulBuildingBlock>(Origin, FRotator::ZeroRotator, SpawnParams))
+		{
+			BBlock->Tags.Add(GeneratedActorTag);
+			BBlock->BuildBlockFromSpecs(BuildingSpecs);
+			++SpawnedActorCount;
+			SpawnedHISMInstanceCount += BBlock->GetHISMPropCount();
+			SpawnedProcMeshSectionCount += 1;
+		}
+	}
+
+	// Soft world-edge boundary blockers (disguised as historic stone walls/gatehouses)
+	SpawnWorldBoundaryBlockers(Origin);
 
 	// Cars parked half-on-the-sidewalk + Eminönü Quay Taxi Rank
 	SpawnParkedCurbCar(TEXT("TaxiRank_Quay1"),    Origin + FVector( 800.0f, -920.0f,    5.0f), FRotator(0.0f,   0.0f,  0.0f), FLinearColor(0.95f, 0.76f, 0.0f));
@@ -1194,10 +1661,13 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		}
 	}
 
+	const bool bNetworkValid = ValidateNetwork();
+
 	UE_LOG(LogIstanbulTaxi, Log,
-		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d) Summary: Roads=%d | Slopes=%d (MinGrade=%.1f deg, MaxGrade=%.1f deg) | Vehicles=%d (YellowTaxi=%d, IETTBus=%d, Dolmus=%d, DeliveryVan=%d) | Props(Actors=%d, HISMInstances=%d, StreetLampPoints=%d)."),
-		Seed, RoadSegments.Num(), InclinedSegmentCount,
+		TEXT("ATestSceneBuilder::RebuildScene(Seed=%d) Summary: Roads=%d | Junctions=%d | Districts=%d | Buildings=%d | Slopes=%d (MinGrade=%.1f deg, MaxGrade=%.1f deg) | Vehicles=%d (YellowTaxi=%d, IETTBus=%d, Dolmus=%d, DeliveryVan=%d) | Props(Actors=%d, HISMInstances=%d, ProcMeshSections=%d, StreetLampPoints=%d) | ValidateNetwork=%s."),
+		Seed, RoadSegments.Num(), SolvedJunctionCount, Districts.Num(), BuildingSpecs.Num(), InclinedSegmentCount,
 		(InclinedSegmentCount > 0 ? MinSlopeDeg : 0.0f), MaxSlopeDeg,
 		TrafficCount, CountTaxi, CountBus, CountDolmus, CountVan,
-		SpawnedActorCount, SpawnedHISMInstanceCount, StreetLampLightWorldPositions.Num());
+		SpawnedActorCount, SpawnedHISMInstanceCount, SpawnedProcMeshSectionCount, StreetLampLightWorldPositions.Num(),
+		bNetworkValid ? TEXT("PASS") : TEXT("FAIL"));
 }
