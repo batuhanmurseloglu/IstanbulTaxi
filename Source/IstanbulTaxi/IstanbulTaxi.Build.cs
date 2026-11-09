@@ -13,6 +13,7 @@ public class IstanbulTaxi : ModuleRules
 			"Core", "CoreUObject", "Engine", "InputCore",
 			"EnhancedInput",
 			"ChaosVehicles", "ChaosVehiclesCore", "PhysicsCore",
+			"ProceduralMeshComponent",
 			"GameplayTags",
 			"DeveloperSettings",
 			"UMG"
