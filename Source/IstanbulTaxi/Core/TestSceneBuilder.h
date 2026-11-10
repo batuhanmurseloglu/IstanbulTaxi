@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Environment/IstanbulBuildingBlock.h"
+#include "Environment/DestructibleStreetProp.h"
 #include "TestSceneBuilder.generated.h"
 
 class UProceduralMeshComponent;
@@ -10,6 +11,7 @@ class UHierarchicalInstancedStaticMeshComponent;
 class UPointLightComponent;
 class AIstanbulTrafficManager;
 class AIstanbulBuildingBlock;
+class ADestructibleStreetProp;
 
 /**
  * Data-driven specification for a single Istanbul road or alley segment.
@@ -60,8 +62,11 @@ struct ISTANBULTAXI_API FIstanbulRoadSegmentSpec
 
 /**
  * Automated Istanbul Urban Environment & Prototype Builder.
- * Builds a complete, data-driven Eminönü -> Galata Bridge -> Karaköy -> Galata -> Tarihi Yarımada corridor
- * with procedural smooth road/slope meshes, HISM street furniture, Bosphorus water, and AI traffic.
+ * Builds a massive, interconnected multi-district Istanbul network:
+ *   1. Eminönü Waterfront & Double-Deck Galata Bridge -> Karaköy Loop
+ *   2. Steep Galata & Cihangir Cobblestone Slopes (12-17.5 deg) & Galata Kulesi Summit
+ *   3. Sirkeci & Sultanahmet Historic Boulevard, Meydan Plaza, Dikilitaş & Mosque Complex
+ *   4. Beşiktaş Coastal Highway, Ferry Piers (Vapur İskelesi) & Elevated Bosphorus Bridge Macro-Loop
  */
 UCLASS()
 class ISTANBULTAXI_API ATestSceneBuilder : public AActor
@@ -122,7 +127,7 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Smooth procedural mesh for asphalt boulevards, Galata Bridge deck, sidewalks, stone walls, and cables. */
+	/** Smooth procedural mesh for asphalt boulevards, Galata Bridge deck, sidewalks, stone walls, cables, and lane markings. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UProceduralMeshComponent> CorridorProcMesh;
 
@@ -161,6 +166,9 @@ private:
 		const FLinearColor& Color, bool bCollidable = false, const FRotator& Rotation = FRotator::ZeroRotator,
 		FName SurfaceActorTag = NAME_None);
 
+	ADestructibleStreetProp* SpawnDestructibleProp(EStreetPropType PropType, const FString& Label,
+		const FVector& Location, const FRotator& Rotation, bool bSignIsStop = false);
+
 	void SpawnIstanbulApartmentBlock(const FString& NamePrefix, const FVector& BaseLocation, float YawDeg,
 		int32 Floors, float WidthM, float DepthM, const FLinearColor& FacadeColor, bool bHasCumba, bool bHasShopAwning,
 		FRandomStream& Rng);
@@ -174,6 +182,7 @@ private:
 	void SpawnSlopeStopSignAndSwitchback(const FVector& Origin);
 	void SpawnGalataTowerLandmark(const FVector& RidgeBase);
 	void SpawnBosphorusScenicOverlook(const FVector& Origin);
+	void SpawnFerryPierAndVessel(const FString& PierPrefix, const FVector& PierLocation, float YawDeg);
 	void SpawnDetailedMosqueComplex(const FVector& HilltopBase);
 	void SpawnHGSBridgeCanopy(const FVector& GateCenter);
 

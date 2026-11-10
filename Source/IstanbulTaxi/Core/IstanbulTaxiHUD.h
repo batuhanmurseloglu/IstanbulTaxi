@@ -28,6 +28,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void DrawHUD() override;
 
+	void PushToast(const FString& Message, const FLinearColor& Color, float Duration = 6.0f);
+
 private:
 	UFUNCTION() void HandleRideCompleted(const FTaxiRideResult& Result);
 	UFUNCTION() void HandlePassengerRemark(const FTaxiRideRequest& Ride, FGameplayTag RemarkTag);
@@ -36,7 +38,6 @@ private:
 	UFUNCTION() void HandleTrafficHorn(AActor* HonkingVehicle, FVector WorldLocation, FString ReasonText);
 
 	void DrawBezelBox(float X, float Y, float W, float H, const FLinearColor& Fill, const FLinearColor& Border, float BorderThickness = 1.5f);
-	void PushToast(const FString& Message, const FLinearColor& Color, float Duration = 6.0f);
 
 	struct FToastEntry
 	{

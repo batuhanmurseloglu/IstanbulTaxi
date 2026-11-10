@@ -1,10 +1,12 @@
 #include "Traffic/IstanbulTrafficManager.h"
 #include "Core/IstanbulMeshUtils.h"
 #include "Core/TestSceneBuilder.h"
+#include "Environment/DestructibleStreetProp.h"
 #include "Vehicle/TaxiPawn.h"
 #include "Missions/PassengerInteractionComponent.h"
 #include "IstanbulTaxi.h"
 #include "ProceduralMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
@@ -125,7 +127,7 @@ static FAutoConsoleCommandWithWorld GCmdIstanbulStats(
 		}
 
 		UE_LOG(LogIstanbulTaxi, Log,
-			TEXT("Istanbul.Stats -> Roads=%d | Districts=%d | Buildings=%d | SpawnedActors=%d | HISMInstances=%d | ProcMeshSections=%d | Vehicles=%d (HighDetail=%d, LowLOD80m=%d | Taxi=%d, Bus=%d, Dolmus=%d, Van=%d, Scooter=%d) | Chokepoints=%d"),
+			TEXT("Istanbul.Stats -> Roads=%d | Districts=%d | Buildings=%d | SpawnedActors=%d | HISMInstances=%d | ProcMeshSections=%d | Vehicles=%d (HighDetail=%d, LowLOD80m=%d | Taxi/Sedan=%d, Bus=%d, Dolmus=%d, Van=%d, Scooter=%d) | Chokepoints=%d"),
 			Builder ? Builder->RoadSegments.Num() : 0,
 			Builder ? Builder->Districts.Num() : 0,
 			Builder ? Builder->BuildingSpecs.Num() : 0,
@@ -191,7 +193,7 @@ bool UHornResponseComponent::OnPlayerHornHeard(float HoldDurationSec, const FVec
 }
 
 // =============================================================================
-// ATrafficVehicle (Task 2.1, 2.2, 2.3)
+// ATrafficVehicle (Contoured 4-Slot Mesh, 5-Spoke Wheels & Solid Collision)
 // =============================================================================
 
 ATrafficVehicle::ATrafficVehicle()
@@ -201,11 +203,22 @@ ATrafficVehicle::ATrafficVehicle()
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
 
+	SolidVehicleCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("SolidVehicleCollision"));
+	SolidVehicleCollision->SetupAttachment(Root);
+	SolidVehicleCollision->SetRelativeLocation(FVector(0.0f, 0.0f, 72.0f));
+	SolidVehicleCollision->InitBoxExtent(FVector(218.0f, 89.0f, 66.0f));
+	SolidVehicleCollision->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	SolidVehicleCollision->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	SolidVehicleCollision->SetCollisionObjectType(ECC_Vehicle);
+	SolidVehicleCollision->SetNotifyRigidBodyCollision(true);
+	SolidVehicleCollision->bDynamicObstacle = true;
+
 	VehicleProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("VehicleProcMesh"));
 	VehicleProcMesh->SetupAttachment(Root);
 	VehicleProcMesh->bUseComplexAsSimpleCollision = true;
 	VehicleProcMesh->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 	VehicleProcMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	VehicleProcMesh->SetCastShadow(true);
 
 	VehicleLodMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("VehicleLodMesh"));
 	VehicleLodMesh->SetupAttachment(Root);
@@ -240,25 +253,18 @@ ATrafficVehicle::ATrafficVehicle()
 	RouteSignText->SetVisibility(false);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylFinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (!CubeFinder.Succeeded())
 	{
 		UE_LOG(LogIstanbulTaxi, Warning, TEXT("ATrafficVehicle: Cube BasicShape not found in constructor."));
 	}
-	if (!CylFinder.Succeeded())
-	{
-		UE_LOG(LogIstanbulTaxi, Warning, TEXT("ATrafficVehicle: Cylinder BasicShape not found in constructor."));
-	}
 
 	for (int32 i = 0; i < 4; ++i)
 	{
-		UStaticMeshComponent* W = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("Wheel_%d"), i));
+		UProceduralMeshComponent* W = CreateDefaultSubobject<UProceduralMeshComponent>(*FString::Printf(TEXT("WheelProc_%d"), i));
 		W->SetupAttachment(Root);
-		W->SetRelativeRotation(FRotator(0.0f, 0.0f, 90.0f));
-		W->SetRelativeScale3D(FVector(0.64f, 0.64f, 0.24f));
 		W->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (CylFinder.Succeeded()) W->SetStaticMesh(CylFinder.Object);
-		WheelMeshes.Add(W);
+		W->SetCastShadow(true);
+		WheelProcMeshes.Add(W);
 	}
 
 	for (int32 i = 0; i < 2; ++i)
@@ -275,133 +281,137 @@ ATrafficVehicle::ATrafficVehicle()
 void ATrafficVehicle::TintMesh(UStaticMeshComponent* Comp, const FLinearColor& Color)
 {
 	if (!Comp) return;
-	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+	if (UMaterialInstanceDynamic* MID = FIstanbulMeshUtils::CreatePBRMaterial(this, Color, 0.1f, 0.35f, 0.6f))
 	{
-		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-		MID->SetVectorParameterValue(TEXT("Color"), Color);
 		Comp->SetMaterial(0, MID);
 	}
 }
 
-void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InType, int32 StyleSeed,
-	FIstanbulMeshSectionData& OutHighDetail, FIstanbulMeshSectionData& OutLowLod,
-	float& OutLengthCm, float& OutWidthCm)
+void ATrafficVehicle::BuildIstanbulVehicleMultiSlotSections(
+	EIstanbulVehicleType InType,
+	int32 StyleSeed,
+	bool bForcePlayerYellowTaxi,
+	FIstanbulMeshSectionData& OutPaintSection,
+	FIstanbulMeshSectionData& OutGlassSection,
+	FIstanbulMeshSectionData& OutTrimSection,
+	FIstanbulMeshSectionData& OutLightsSection,
+	FIstanbulMeshSectionData& OutLowLod,
+	FLinearColor& OutPrimaryPaintColor,
+	float& OutLengthCm,
+	float& OutWidthCm)
 {
-	OutHighDetail.Reset();
+	OutPaintSection.Reset();
+	OutGlassSection.Reset();
+	OutTrimSection.Reset();
+	OutLightsSection.Reset();
 	OutLowLod.Reset();
 
 	FRandomStream Rng(StyleSeed);
-	// Task 2.2: Per-instance slight color/dirt variation (±4% brightness/saturation jitter)
 	const float DirtJitter = Rng.FRandRange(0.96f, 1.04f);
 
-	const FLinearColor DarkGlass(0.06f, 0.09f, 0.13f, 1.0f);
-	const FLinearColor WheelArchCol(0.04f, 0.04f, 0.05f, 1.0f);
-	const FLinearColor BumperDark(0.10f, 0.11f, 0.13f, 1.0f);
-	const FLinearColor HeadlightCol(1.00f, 0.96f, 0.78f, 1.0f);
-	const FLinearColor TaillightCol(0.92f, 0.06f, 0.05f, 1.0f);
+	const FLinearColor DarkGlass(0.03f, 0.05f, 0.08f, 1.0f);
+	const FLinearColor MatteTrim(0.04f, 0.04f, 0.05f, 1.0f);
+	const FLinearColor ChromeCol(0.76f, 0.79f, 0.84f, 1.0f);
+	const FLinearColor HeadlightCol(1.00f, 0.96f, 0.82f, 1.0f);
+	const FLinearColor TaillightCol(0.92f, 0.05f, 0.05f, 1.0f);
+	const FLinearColor AmberSignal(1.00f, 0.58f, 0.02f, 1.0f);
 	const FLinearColor PlateWhite(0.95f, 0.95f, 0.96f, 1.0f);
 	const FLinearColor PlateBlueTR(0.04f, 0.24f, 0.78f, 1.0f);
 
 	OutLengthCm = 445.0f;
-	OutWidthCm  = 180.0f;
+	OutWidthCm  = 182.0f;
+	OutPrimaryPaintColor = FLinearColor::FromSRGBColor(FColor(0xF5, 0xC4, 0x00));
 
 	switch (InType)
 	{
 	case EIstanbulVehicleType::YellowTaxi:
 	{
-		// 1. Yellow Taxi (~4.45m x 1.80m x 1.48m): Beveled hood, raked windshield, cabin, trunk,
-		//    front & rear bumpers, wheel arches, side mirrors, roof "TAKSİ" sign.
 		OutLengthCm = 445.0f;
-		OutWidthCm  = 180.0f;
-		const FLinearColor TaxiYellow = FLinearColor::FromSRGBColor(FColor(0xF5, 0xC4, 0x00)) * DirtJitter;
-		const FLinearColor CheckerBand(0.05f, 0.05f, 0.06f, 1.0f);
-		const FLinearColor RoofSignYellow(1.0f, 0.92f, 0.18f, 1.0f);
+		OutWidthCm  = 182.0f;
 
-		// Lower sill chassis
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 44.0f)),
-			FVector(216.0f, 88.0f, 18.0f), 5.0f, TaxiYellow * 0.94f);
-		// Front & Rear Bumpers
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(218.0f, 0.0f, 38.0f)),
-			FVector(10.0f, 89.0f, 12.0f), 4.0f, BumperDark);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-218.0f, 0.0f, 40.0f)),
-			FVector(10.0f, 89.0f, 13.0f), 4.0f, BumperDark);
-		// Front Hood (slightly sloped)
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(-4.0f, 0.0f, 0.0f), FVector(138.0f, 0.0f, 65.0f)),
-			FVector(78.0f, 86.0f, 18.0f), 6.0f, TaxiYellow);
-		// Raked Front Windshield & Rear Backlight
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(-28.0f, 0.0f, 0.0f), FVector(74.0f, 0.0f, 96.0f)),
-			FVector(32.0f, 76.0f, 4.0f), 1.5f, DarkGlass);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(26.0f, 0.0f, 0.0f), FVector(-96.0f, 0.0f, 96.0f)),
-			FVector(30.0f, 75.0f, 4.0f), 1.5f, DarkGlass);
-		// Center Passenger Cabin & Dark Glass Window Band
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-12.0f, 0.0f, 96.0f)),
-			FVector(104.0f, 78.0f, 34.0f), 8.0f, TaxiYellow);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-12.0f, 0.0f, 98.0f)),
-			FVector(92.0f, 80.5f, 19.0f), 3.5f, DarkGlass);
-		// Rear Trunk Deck
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-156.0f, 0.0f, 68.0f)),
-			FVector(62.0f, 85.0f, 20.0f), 6.0f, TaxiYellow);
-		// Black Checkered Waist Band
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 62.0f)),
-			FVector(219.0f, 90.0f, 4.5f), 1.0f, CheckerBand);
-		// Left & Right Side Mirrors
-		for (int32 Side = -1; Side <= 1; Side += 2)
-		{
-			FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(58.0f, Side * 95.0f, 88.0f)),
-				FVector(7.0f, 10.0f, 5.5f), 1.5f, TaxiYellow);
-		}
-		// Roof-mounted "TAKSİ" light dome
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-5.0f, 0.0f, 136.0f)),
-			FVector(18.0f, 42.0f, 8.5f), 2.5f, RoofSignYellow);
+		// In AI traffic, mix iconic Yellow Taxis with sleek Civilian Metallic Blue/Silver/Black/Crimson sedans!
+		static const FLinearColor CivilianPalette[4] = {
+			FLinearColor(0.08f, 0.24f, 0.58f, 1.0f), // Metallic Bosphorus Blue
+			FLinearColor(0.68f, 0.72f, 0.76f, 1.0f), // Metallic Silver
+			FLinearColor(0.07f, 0.08f, 0.10f, 1.0f), // Obsidian Executive Black
+			FLinearColor(0.56f, 0.06f, 0.08f, 1.0f)  // Deep Ruby Metallic
+		};
 
-		// 80m Low-Poly LOD Mesh (2 boxes: body + cabin glass)
+		const bool bIsTaxi = bForcePlayerYellowTaxi || ((FMath::Abs(StyleSeed) % 3) != 1);
+		const FLinearColor PaintCol = bIsTaxi
+			? (FLinearColor::FromSRGBColor(FColor(0xF5, 0xC4, 0x00)) * DirtJitter)
+			: (CivilianPalette[FMath::Abs(StyleSeed) % 4] * DirtJitter);
+		OutPrimaryPaintColor = PaintCol;
+
+		FIstanbulMeshUtils::AppendContouredSedanBody(
+			OutPaintSection, OutGlassSection, OutTrimSection, OutLightsSection,
+			PaintCol, bIsTaxi, false);
+
+		// 80m Low-Poly LOD Mesh
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(0.0f, 0.0f, 58.0f)),
-			FVector(220.0f, 88.0f, 28.0f), 2.0f, TaxiYellow);
+			FVector(216.0f, 88.0f, 28.0f), 2.0f, PaintCol);
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(-12.0f, 0.0f, 102.0f)),
 			FVector(102.0f, 78.0f, 22.0f), 2.0f, DarkGlass);
-		break;
+		return;
 	}
 	case EIstanbulVehicleType::IETTBus:
 	{
-		// 2. İETT Bus (11.8m long, 2.5m wide, 3.1m tall): Red/white livery, dark window band,
-		//    front route sign board, 3 doors on right side, recessed wheel wells, rooftop AC pod.
+		// 2. İETT City Bus (11.8m long, 2.5m wide, 3.1m tall) with contoured nose, panoramic tinted windows,
+		//    3 folding doors, rooftop AC pods, wipers, and glowing destination board.
 		OutLengthCm = 1180.0f;
 		OutWidthCm  = 250.0f;
 		const FLinearColor IETTRed   = FLinearColor::FromSRGBColor(FColor(0xC8, 0x10, 0x2E)) * DirtJitter;
 		const FLinearColor IETTWhite = FLinearColor(0.94f, 0.94f, 0.96f, 1.0f) * DirtJitter;
-		const FLinearColor DoorDark(0.08f, 0.09f, 0.11f, 1.0f);
 		const FLinearColor RouteAmber(1.00f, 0.58f, 0.04f, 1.0f);
+		OutPrimaryPaintColor = IETTRed;
 
-		// Lower Red Hull (#C8102E) + Front/Rear Bumpers
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 78.0f)),
-			FVector(585.0f, 124.0f, 46.0f), 10.0f, IETTRed);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(588.0f, 0.0f, 46.0f)),
-			FVector(8.0f, 125.0f, 16.0f), 3.0f, BumperDark);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-588.0f, 0.0f, 46.0f)),
-			FVector(8.0f, 125.0f, 16.0f), 3.0f, BumperDark);
-		// Crisp White Upper Livery & Coach Crown
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 134.0f)),
-			FVector(586.0f, 125.0f, 16.0f), 4.0f, IETTWhite);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 208.0f)),
-			FVector(582.0f, 122.0f, 62.0f), 12.0f, IETTWhite);
-		// Dark Panoramic Window Band
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(4.0f, 0.0f, 198.0f)),
-			FVector(585.0f, 124.5f, 36.0f), 6.0f, DarkGlass);
-		// 3 Passenger Folding Doors on the Right Side (+Y = +125.5cm)
+		// Lower Contoured Red Body + Sloped Front Windshield Header
+		FIstanbulMeshUtils::AppendBeveledBox(OutPaintSection, FTransform(FVector(0.0f, 0.0f, 78.0f)),
+			FVector(582.0f, 124.0f, 44.0f), 10.0f, IETTRed);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(588.0f, 0.0f, 44.0f)),
+			FVector(10.0f, 125.0f, 16.0f), 4.0f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(-588.0f, 0.0f, 44.0f)),
+			FVector(10.0f, 125.0f, 16.0f), 4.0f, MatteTrim);
+
+		// White Upper Crown + Rooftop AC Pods (Slot 3 bright white so red/white two-tone livery is crisp!)
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(0.0f, 0.0f, 132.0f)),
+			FVector(584.0f, 125.0f, 14.0f), 3.0f, IETTWhite);
+		FIstanbulMeshUtils::AppendTaperedPrism(OutPaintSection, FTransform(FVector(0.0f, 0.0f, 256.0f)),
+			FVector2D(580.0f, 122.0f), FVector2D(570.0f, 114.0f), FVector::ZeroVector,
+			16.0f, IETTRed);
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(210.0f, 0.0f, 286.0f)),
+			FVector(135.0f, 82.0f, 16.0f), 5.0f, IETTWhite);
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(-220.0f, 0.0f, 282.0f)),
+			FVector(95.0f, 78.0f, 14.0f), 4.0f, IETTWhite);
+
+		// Panoramic Dark Tinted Window Greenhouse + Raked Front Bus Windshield (Slot 1 Glass)
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FVector(4.0f, 0.0f, 194.0f)),
+			FVector(578.0f, 123.5f, 46.0f), 5.0f, DarkGlass);
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FRotator(12.0f, 0.0f, 0.0f), FVector(582.0f, 0.0f, 182.0f)),
+			FVector(4.5f, 116.0f, 54.0f), 1.5f, DarkGlass);
+
+		// Window Pillars & 3 Folding Doors on Right Side (+Y) (Slot 2 Trim)
+		for (int32 p = -4; p <= 4; ++p)
+		{
+			FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(p * 125.0f, 0.0f, 194.0f)),
+				FVector(5.0f, 125.0f, 47.0f), 1.0f, MatteTrim);
+		}
 		const float DoorOffsetsX[3] = { 440.0f, 45.0f, -410.0f };
 		for (int32 d = 0; d < 3; ++d)
 		{
-			FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(DoorOffsetsX[d], 125.5f, 132.0f)),
-				FVector(58.0f, 2.0f, 94.0f), 1.0f, DoorDark);
+			FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(DoorOffsetsX[d], 125.2f, 132.0f)),
+				FVector(58.0f, 2.2f, 94.0f), 1.0f, MatteTrim);
 		}
-		// Rooftop AC Pods (bringing total height to ~3.1m)
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(210.0f, 0.0f, 286.0f)),
-			FVector(135.0f, 82.0f, 18.0f), 5.0f, IETTWhite * 0.92f);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-220.0f, 0.0f, 282.0f)),
-			FVector(95.0f, 78.0f, 15.0f), 4.0f, IETTWhite * 0.92f);
-		// Front LED Destination Sign Board
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(586.0f, 0.0f, 248.0f)),
-			FVector(3.0f, 82.0f, 14.0f), 1.0f, RouteAmber);
+		// Large Commercial Side-Mirrors on Top Arms
+		for (int32 Side = -1; Side <= 1; Side += 2)
+		{
+			FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(592.0f, Side * 132.0f, 205.0f)),
+				FVector(10.0f, 8.0f, 18.0f), 2.0f, MatteTrim);
+		}
+
+		// Front LED Destination Board + Emissive Headlights/Taillights (Slot 3)
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(585.0f, 0.0f, 248.0f)),
+			FVector(3.5f, 86.0f, 14.0f), 1.0f, RouteAmber);
 
 		// 80m Low-Poly LOD Mesh
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(0.0f, 0.0f, 95.0f)),
@@ -412,34 +422,43 @@ void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InTy
 	}
 	case EIstanbulVehicleType::Dolmus:
 	{
-		// 3. Dolmuş (5.6m long, 2.05m wide, 2.35m tall): Yellow/cream body, black waist stripe,
-		//    boxy Transit-style nose, sliding right-side door seam, roof route sign, rear bumper step.
+		// 3. Yellow Minibus / Dolmuş (5.6m long, 2.05m wide, 2.35m tall) with contoured nose, raked windshield,
+		//    tinted passenger windows, roof route board, and black beltline trim.
 		OutLengthCm = 560.0f;
 		OutWidthCm  = 205.0f;
 		const FLinearColor DolmusYellow = FLinearColor::FromSRGBColor(FColor(0xF2, 0xC6, 0x18)) * DirtJitter;
-		const FLinearColor BlackStripe(0.05f, 0.05f, 0.06f, 1.0f);
+		OutPrimaryPaintColor = DolmusYellow;
 
-		// Main Transit Lower Van Box + Rear Bumper Step
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 74.0f)),
-			FVector(276.0f, 101.0f, 42.0f), 8.0f, DolmusYellow);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-284.0f, 0.0f, 38.0f)),
-			FVector(10.0f, 98.0f, 8.0f), 2.0f, BumperDark);
-		// Boxy Transit Sloped Nose / Hood
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(-8.0f, 0.0f, 0.0f), FVector(232.0f, 0.0f, 88.0f)),
-			FVector(48.0f, 96.0f, 26.0f), 8.0f, DolmusYellow);
-		// High-Roof Minibus Passenger Greenhouse (~2.35m tall)
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-24.0f, 0.0f, 152.0f)),
-			FVector(230.0f, 96.0f, 46.0f), 10.0f, DolmusYellow * 0.98f);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-18.0f, 0.0f, 148.0f)),
-			FVector(234.0f, 98.5f, 25.0f), 4.0f, DarkGlass);
-		// Black Beltline Stripe + Right-Side Sliding-Door Track Seam
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 98.0f)),
-			FVector(278.0f, 103.0f, 6.0f), 1.5f, BlackStripe);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(35.0f, 103.5f, 114.0f)),
-			FVector(58.0f, 1.8f, 62.0f), 0.5f, BlackStripe);
-		// Roof Route Sign ("BEŞİKTAŞ - TAKSİM")
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(185.0f, 0.0f, 206.0f)),
-			FVector(14.0f, 56.0f, 9.0f), 2.0f, FLinearColor(1.0f, 0.78f, 0.12f, 1.0f));
+		// Lower Van Body + Contoured Sloped Nose
+		FIstanbulMeshUtils::AppendBeveledBox(OutPaintSection, FTransform(FVector(-12.0f, 0.0f, 74.0f)),
+			FVector(262.0f, 100.0f, 42.0f), 8.0f, DolmusYellow);
+		FIstanbulMeshUtils::AppendTaperedPrism(OutPaintSection, FTransform(FVector(226.0f, 0.0f, 82.0f)),
+			FVector2D(52.0f, 98.0f), FVector2D(46.0f, 90.0f), FVector(-6.0f, 0.0f, -8.0f),
+			26.0f, DolmusYellow * 1.03f);
+
+		// High-Roof Crown + Raked Windshield & Passenger Windows
+		FIstanbulMeshUtils::AppendTaperedPrism(OutPaintSection, FTransform(FVector(-26.0f, 0.0f, 186.0f)),
+			FVector2D(228.0f, 95.0f), FVector2D(210.0f, 84.0f), FVector::ZeroVector,
+			16.0f, DolmusYellow * 1.04f);
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FVector(-22.0f, 0.0f, 142.0f)),
+			FVector(220.0f, 97.5f, 28.0f), 4.0f, DarkGlass);
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FRotator(32.0f, 0.0f, 0.0f), FVector(186.0f, 0.0f, 138.0f)),
+			FVector(4.0f, 88.0f, 34.0f), 1.2f, DarkGlass);
+
+		// Bumpers, Grille, Side Mirrors & Black Waist Stripe (Slot 2 Trim)
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(278.0f, 0.0f, 40.0f)),
+			FVector(9.0f, 101.0f, 14.0f), 3.5f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(-280.0f, 0.0f, 40.0f)),
+			FVector(10.0f, 101.0f, 14.0f), 3.5f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(278.5f, 0.0f, 68.0f)),
+			FVector(3.5f, 56.0f, 14.0f), 1.5f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(0.0f, 0.0f, 98.0f)),
+			FVector(276.0f, 102.0f, 5.5f), 1.2f, MatteTrim);
+
+		// Illuminated Roof Route Sign ("BEŞİKTAŞ - TAKSİM")
+		FIstanbulMeshUtils::AppendTaperedPrism(OutLightsSection, FTransform(FVector(168.0f, 0.0f, 208.0f)),
+			FVector2D(16.0f, 58.0f), FVector2D(11.0f, 50.0f), FVector::ZeroVector,
+			9.0f, FLinearColor(1.0f, 0.80f, 0.12f, 1.0f));
 
 		// 80m Low-Poly LOD Mesh
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(0.0f, 0.0f, 112.0f)),
@@ -448,36 +467,36 @@ void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InTy
 	}
 	case EIstanbulVehicleType::DeliveryVan:
 	{
-		// 4. Delivery Van (5.2m long, 2.0m wide, 2.45m tall): Cab + taller cargo box,
-		//    white/blue/grey color variants, rear double-door seam + ladder rack or open door detail.
+		// 4. Delivery Panel Van (5.2m long, 2.0m wide, 2.45m tall) with contoured cab, raked windshield,
+		//    high cargo box, rear double-door hardware, and front bumper/grille.
 		OutLengthCm = 520.0f;
 		OutWidthCm  = 200.0f;
 		static const FLinearColor VanBodyPalette[3] = {
 			FLinearColor(0.92f, 0.94f, 0.96f, 1.0f), // Classic Logistics White
-			FLinearColor(0.18f, 0.36f, 0.64f, 1.0f), // Fleet Blue
-			FLinearColor(0.68f, 0.71f, 0.75f, 1.0f)  // Industrial Silver-Grey
+			FLinearColor(0.14f, 0.34f, 0.66f, 1.0f), // Fleet Blue
+			FLinearColor(0.66f, 0.70f, 0.75f, 1.0f)  // Industrial Silver-Grey
 		};
 		const FLinearColor VanBody = VanBodyPalette[FMath::Abs(StyleSeed) % 3] * DirtJitter;
-		const FLinearColor CargoStripe(0.08f, 0.38f, 0.78f, 1.0f);
-		const FLinearColor SeamDark(0.12f, 0.14f, 0.16f, 1.0f);
+		OutPrimaryPaintColor = VanBody;
 
-		// Forward Driver Cab + Hood
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(165.0f, 0.0f, 86.0f)),
-			FVector(86.0f, 94.0f, 52.0f), 8.0f, VanBody);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(176.0f, 0.0f, 108.0f)),
-			FVector(76.0f, 96.0f, 22.0f), 4.0f, DarkGlass);
-		// Taller Cargo Box (~2.45m top height)
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-58.0f, 0.0f, 134.0f)),
-			FVector(182.0f, 100.0f, 98.0f), 6.0f, VanBody);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-58.0f, 0.0f, 108.0f)),
-			FVector(183.5f, 101.5f, 12.0f), 2.0f, CargoStripe);
-		// Rear Double-Door Vertical Center Seam + Rear Step Bumper + Right-Side Ladder Rack
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-241.0f, 0.0f, 134.0f)),
-			FVector(2.0f, 3.0f, 92.0f), 0.5f, SeamDark);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-244.0f, -62.0f, 134.0f)),
-			FVector(2.5f, 12.0f, 78.0f), 1.0f, SeamDark);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-246.0f, 0.0f, 40.0f)),
-			FVector(9.0f, 98.0f, 8.0f), 2.0f, BumperDark);
+		// Contoured Driver Cab + Sloped Nose + High Cargo Box
+		FIstanbulMeshUtils::AppendTaperedPrism(OutPaintSection, FTransform(FVector(168.0f, 0.0f, 84.0f)),
+			FVector2D(86.0f, 95.0f), FVector2D(72.0f, 88.0f), FVector(-8.0f, 0.0f, 0.0f),
+			48.0f, VanBody);
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FRotator(34.0f, 0.0f, 0.0f), FVector(212.0f, 0.0f, 116.0f)),
+			FVector(4.0f, 84.0f, 30.0f), 1.0f, DarkGlass);
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FVector(154.0f, 0.0f, 114.0f)),
+			FVector(46.0f, 95.5f, 22.0f), 3.0f, DarkGlass);
+
+		// Cargo Box + Rear Door Seams & Bumpers
+		FIstanbulMeshUtils::AppendBeveledBox(OutPaintSection, FTransform(FVector(-58.0f, 0.0f, 134.0f)),
+			FVector(182.0f, 100.0f, 96.0f), 7.0f, VanBody);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(254.0f, 0.0f, 40.0f)),
+			FVector(9.0f, 97.0f, 14.0f), 3.5f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(-246.0f, 0.0f, 40.0f)),
+			FVector(9.0f, 98.0f, 12.0f), 3.0f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(-241.0f, 0.0f, 134.0f)),
+			FVector(2.0f, 3.0f, 92.0f), 0.5f, MatteTrim);
 
 		// 80m Low-Poly LOD Mesh
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(-20.0f, 0.0f, 122.0f)),
@@ -486,29 +505,27 @@ void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InTy
 	}
 	case EIstanbulVehicleType::ScooterCourier:
 	{
-		// 5. Optional 5th Archetype: Motorbike / Scooter Courier (Kurye) weaving along road edges
 		OutLengthCm = 210.0f;
 		OutWidthCm  = 82.0f;
 		const FLinearColor ScooterBody(0.88f, 0.18f, 0.14f, 1.0f);
 		const FLinearColor CourierBoxCol(0.98f, 0.62f, 0.04f, 1.0f);
 		const FLinearColor RiderJacket(0.14f, 0.18f, 0.26f, 1.0f);
 		const FLinearColor HelmetWhite(0.94f, 0.94f, 0.96f, 1.0f);
+		OutPrimaryPaintColor = ScooterBody;
 
-		// Scooter Lower Deck & Front Leg Shield Fairing
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(0.0f, 0.0f, 38.0f)),
+		FIstanbulMeshUtils::AppendBeveledBox(OutPaintSection, FTransform(FVector(0.0f, 0.0f, 38.0f)),
 			FVector(78.0f, 24.0f, 16.0f), 4.0f, ScooterBody);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(-18.0f, 0.0f, 0.0f), FVector(58.0f, 0.0f, 68.0f)),
+		FIstanbulMeshUtils::AppendBeveledBox(OutPaintSection, FTransform(FRotator(-18.0f, 0.0f, 0.0f), FVector(58.0f, 0.0f, 68.0f)),
 			FVector(16.0f, 26.0f, 32.0f), 4.0f, ScooterBody);
-		// Rider Torso + White Helmet
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FRotator(10.0f, 0.0f, 0.0f), FVector(-4.0f, 0.0f, 96.0f)),
+		FIstanbulMeshUtils::AppendBeveledBox(OutGlassSection, FTransform(FRotator(-22.0f, 0.0f, 0.0f), FVector(64.0f, 0.0f, 108.0f)),
+			FVector(2.0f, 20.0f, 16.0f), 0.8f, DarkGlass);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FRotator(10.0f, 0.0f, 0.0f), FVector(-4.0f, 0.0f, 96.0f)),
 			FVector(18.0f, 22.0f, 28.0f), 5.0f, RiderJacket);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(2.0f, 0.0f, 134.0f)),
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(2.0f, 0.0f, 134.0f)),
 			FVector(14.0f, 14.0f, 14.0f), 5.0f, HelmetWhite);
-		// Rear Thermal Delivery Top-Box ("KURYE")
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-58.0f, 0.0f, 88.0f)),
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(-58.0f, 0.0f, 88.0f)),
 			FVector(24.0f, 26.0f, 24.0f), 4.0f, CourierBoxCol);
 
-		// 80m Low-Poly LOD Mesh
 		FIstanbulMeshUtils::AppendBeveledBox(OutLowLod, FTransform(FVector(0.0f, 0.0f, 75.0f)),
 			FVector(85.0f, 26.0f, 52.0f), 2.0f, CourierBoxCol);
 		break;
@@ -518,53 +535,127 @@ void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InTy
 	const float AxleX = OutLengthCm * 0.32f;
 	const float AxleY = OutWidthCm * 0.48f;
 
-	// Recessed dark wheel arches + emissive headlights/taillights + front/rear Turkish license plate quads
 	for (int32 Side = -1; Side <= 1; Side += 2)
 	{
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector( AxleX, Side * (AxleY - 4.0f), 36.0f)),
-			FVector(34.0f, 9.0f, 22.0f), 3.0f, WheelArchCol);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-AxleX, Side * (AxleY - 4.0f), 36.0f)),
-			FVector(34.0f, 9.0f, 22.0f), 3.0f, WheelArchCol);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector( AxleX, Side * (AxleY - 4.0f), 36.0f)),
+			FVector(36.0f, 9.0f, 22.0f), 3.0f, MatteTrim);
+		FIstanbulMeshUtils::AppendBeveledBox(OutTrimSection, FTransform(FVector(-AxleX, Side * (AxleY - 4.0f), 36.0f)),
+			FVector(36.0f, 9.0f, 22.0f), 3.0f, MatteTrim);
 
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(OutLengthCm * 0.5f + 1.0f, Side * OutWidthCm * 0.32f, 56.0f)),
-			FVector(3.0f, 12.0f, 7.5f), 1.0f, HeadlightCol);
-		FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(-OutLengthCm * 0.5f - 1.0f, Side * OutWidthCm * 0.32f, 58.0f)),
-			FVector(3.0f, 13.0f, 7.5f), 1.0f, TaillightCol);
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(OutLengthCm * 0.5f + 1.0f, Side * OutWidthCm * 0.32f, 58.0f)),
+			FVector(3.5f, 14.0f, 7.5f), 1.2f, HeadlightCol);
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(OutLengthCm * 0.5f, Side * OutWidthCm * 0.44f, 58.0f)),
+			FVector(4.0f, 4.0f, 7.0f), 1.0f, AmberSignal);
+		FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(-OutLengthCm * 0.5f - 1.0f, Side * OutWidthCm * 0.32f, 60.0f)),
+			FVector(3.5f, 15.0f, 7.5f), 1.2f, TaillightCol);
 	}
 
-	// Front & Rear Turkish License Plate Quads (White plate + Blue "TR" strip on left)
+	// Front & Rear Turkish License Plates
 	const float FrontPlateX = OutLengthCm * 0.5f + 2.5f;
 	const float RearPlateX  = -OutLengthCm * 0.5f - 2.5f;
-	FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(FrontPlateX, 0.0f, 38.0f)),
+	FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(FrontPlateX, 0.0f, 38.0f)),
 		FVector(1.2f, 26.0f, 5.5f), 0.3f, PlateWhite);
-	FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(FrontPlateX + 0.4f, -22.0f, 38.0f)),
+	FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(FrontPlateX + 0.4f, -22.0f, 38.0f)),
 		FVector(1.0f, 4.0f, 5.5f), 0.2f, PlateBlueTR);
 
-	FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(RearPlateX, 0.0f, 42.0f)),
+	FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(RearPlateX, 0.0f, 42.0f)),
 		FVector(1.2f, 26.0f, 5.5f), 0.3f, PlateWhite);
-	FIstanbulMeshUtils::AppendBeveledBox(OutHighDetail, FTransform(FVector(RearPlateX - 0.4f, 22.0f, 42.0f)),
+	FIstanbulMeshUtils::AppendBeveledBox(OutLightsSection, FTransform(FVector(RearPlateX - 0.4f, 22.0f, 42.0f)),
 		FVector(1.0f, 4.0f, 5.5f), 0.2f, PlateBlueTR);
+}
+
+void ATrafficVehicle::BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InType, int32 StyleSeed,
+	FIstanbulMeshSectionData& OutHighDetail, FIstanbulMeshSectionData& OutLowLod,
+	float& OutLengthCm, float& OutWidthCm)
+{
+	FIstanbulMeshSectionData PaintSec, GlassSec, TrimSec, LightsSec;
+	FLinearColor PrimaryPaint;
+	BuildIstanbulVehicleMultiSlotSections(InType, StyleSeed, true,
+		PaintSec, GlassSec, TrimSec, LightsSec, OutLowLod, PrimaryPaint, OutLengthCm, OutWidthCm);
+
+	OutHighDetail = PaintSec;
+	auto AppendSec = [&OutHighDetail](const FIstanbulMeshSectionData& Src)
+	{
+		const int32 BaseV = OutHighDetail.Vertices.Num();
+		OutHighDetail.Vertices.Append(Src.Vertices);
+		OutHighDetail.Normals.Append(Src.Normals);
+		OutHighDetail.UVs.Append(Src.UVs);
+		OutHighDetail.VertexColors.Append(Src.VertexColors);
+		OutHighDetail.Tangents.Append(Src.Tangents);
+		for (int32 Idx : Src.Triangles)
+		{
+			OutHighDetail.Triangles.Add(BaseV + Idx);
+		}
+	};
+	AppendSec(GlassSec);
+	AppendSec(TrimSec);
+	AppendSec(LightsSec);
+}
+
+void ATrafficVehicle::CommitMultiSlotVehicleMesh(
+	UObject* MaterialOuter,
+	UProceduralMeshComponent* TargetPMC,
+	bool bCreateCollision,
+	const FLinearColor& PrimaryPaintColor,
+	const FIstanbulMeshSectionData& PaintSection,
+	const FIstanbulMeshSectionData& GlassSection,
+	const FIstanbulMeshSectionData& TrimSection,
+	const FIstanbulMeshSectionData& LightsSection)
+{
+	if (!TargetPMC) return;
+
+	TargetPMC->ClearAllMeshSections();
+
+	// Slot 0: Glossy Automotive Paint (Metallic=0.4, Roughness=0.2)
+	UMaterialInterface* PaintMat = FIstanbulMeshUtils::CreatePBRMaterial(MaterialOuter, PrimaryPaintColor, 0.40f, 0.20f, 0.85f);
+	// Slot 1: Dark Tinted Cabin Glass (Roughness=0.05, Specular=0.9)
+	UMaterialInterface* GlassMat = FIstanbulMeshUtils::CreatePBRMaterial(MaterialOuter, FLinearColor(0.025f, 0.045f, 0.075f, 1.0f), 0.15f, 0.05f, 0.90f);
+	// Slot 2: Rubber & Matte Trim (Roughness=0.85)
+	UMaterialInterface* TrimMat  = FIstanbulMeshUtils::CreatePBRMaterial(MaterialOuter, FLinearColor(0.035f, 0.035f, 0.045f, 1.0f), 0.05f, 0.85f, 0.20f);
+	// Slot 3: Emissive Headlights, Taillights, Blinkers, Plates & Taxi Roof Dome
+	UMaterialInterface* GlowMat  = FIstanbulMeshUtils::LoadVertexColorMaterialSafe();
+
+	PaintSection.CommitToComponent(TargetPMC, 0, bCreateCollision, PaintMat);
+	GlassSection.CommitToComponent(TargetPMC, 1, false, GlassMat);
+	TrimSection.CommitToComponent(TargetPMC,  2, false, TrimMat);
+	LightsSection.CommitToComponent(TargetPMC, 3, false, GlowMat);
 }
 
 void ATrafficVehicle::BuildVisualMesh(EIstanbulVehicleType InType)
 {
 	VehicleType = InType;
 	InstanceStyleSeed = GetUniqueID() * 31 + static_cast<int32>(InType) * 97;
+	bIsCivilianVariant = (InType == EIstanbulVehicleType::YellowTaxi) && ((FMath::Abs(InstanceStyleSeed) % 3) == 1);
 
-	FIstanbulMeshSectionData BodySection;
-	FIstanbulMeshSectionData LodSection;
+	FIstanbulMeshSectionData PaintSection, GlassSection, TrimSection, LightsSection, LodSection;
+	FLinearColor PrimaryPaintColor;
 	float LengthCm = 445.0f;
-	float WidthCm  = 180.0f;
+	float WidthCm  = 182.0f;
 
-	BuildIstanbulVehicleMeshSections(InType, InstanceStyleSeed, BodySection, LodSection, LengthCm, WidthCm);
+	BuildIstanbulVehicleMultiSlotSections(
+		InType, InstanceStyleSeed, false,
+		PaintSection, GlassSection, TrimSection, LightsSection, LodSection,
+		PrimaryPaintColor, LengthCm, WidthCm);
+
+	CommitMultiSlotVehicleMesh(this, VehicleProcMesh, true, PrimaryPaintColor,
+		PaintSection, GlassSection, TrimSection, LightsSection);
 
 	UMaterialInterface* VtxMat = FIstanbulMeshUtils::LoadVertexColorMaterialSafe();
-	BodySection.CommitToComponent(VehicleProcMesh, 0, true, VtxMat);
 	LodSection.CommitToComponent(VehicleLodMesh, 0, false, VtxMat);
 
-	// Configure near-player Turkish license plate text ("34 T 1453" / "34 M 4120" / "34 KY 892")
+	if (SolidVehicleCollision)
+	{
+		const float HalfH = (InType == EIstanbulVehicleType::IETTBus) ? 140.0f
+			: (InType == EIstanbulVehicleType::Dolmus || InType == EIstanbulVehicleType::DeliveryVan) ? 110.0f
+			: 68.0f;
+		SolidVehicleCollision->SetBoxExtent(FVector(LengthCm * 0.49f, WidthCm * 0.49f, HalfH));
+		SolidVehicleCollision->SetRelativeLocation(FVector(0.0f, 0.0f, HalfH + 8.0f));
+	}
+
+	// Configure near-player Turkish license plate text ("34 T 1453" / "34 M 4120" / "34 IST 892")
 	const int32 PlateNum = 1000 + (FMath::Abs(InstanceStyleSeed) % 8999);
-	const TCHAR* PlateMid = (InType == EIstanbulVehicleType::YellowTaxi) ? TEXT("T")
+	const TCHAR* PlateMid = (InType == EIstanbulVehicleType::YellowTaxi && !bIsCivilianVariant) ? TEXT("T")
+		: (InType == EIstanbulVehicleType::YellowTaxi && bIsCivilianVariant) ? TEXT("IST")
 		: (InType == EIstanbulVehicleType::Dolmus) ? TEXT("M")
 		: (InType == EIstanbulVehicleType::IETTBus) ? TEXT("TN")
 		: TEXT("KY");
@@ -578,7 +669,7 @@ void ATrafficVehicle::BuildVisualMesh(EIstanbulVehicleType InType)
 	if (RearPlateText)
 	{
 		RearPlateText->SetText(PlateLabel);
-		RearPlateText->SetRelativeLocationAndRotation(FVector(-LengthCm * 0.5f - 4.2f, 0.0f, 42.0f), FRotator(0.0f, 180.0f, 0.0f));
+		RearPlateText->SetRelativeLocationAndRotation(FVector(-LengthCm * 0.5f - 4.2f, 0.0f, 46.0f), FRotator(0.0f, 180.0f, 0.0f));
 	}
 	if (RouteSignText)
 	{
@@ -591,7 +682,7 @@ void ATrafficVehicle::BuildVisualMesh(EIstanbulVehicleType InType)
 		else if (InType == EIstanbulVehicleType::Dolmus)
 		{
 			RouteSignText->SetText(FText::FromString(TEXT("TAKSİM - BEŞİKTAŞ")));
-			RouteSignText->SetRelativeLocationAndRotation(FVector(198.0f, 0.0f, 206.0f), FRotator::ZeroRotator);
+			RouteSignText->SetRelativeLocationAndRotation(FVector(184.0f, 0.0f, 208.0f), FRotator::ZeroRotator);
 			RouteSignText->SetVisibility(true);
 		}
 		else
@@ -600,24 +691,41 @@ void ATrafficVehicle::BuildVisualMesh(EIstanbulVehicleType InType)
 		}
 	}
 
-	const float AxleX = LengthCm * 0.32f;
-	const float AxleY = (InType == EIstanbulVehicleType::ScooterCourier) ? 0.0f : (WidthCm * 0.48f);
+	// Build 5-Spoke Sculpted Alloy Rim + Rubber Tire Wheel Meshes
+	FIstanbulMeshSectionData TireSection, RimSection;
+	const float WheelRadius = (InType == EIstanbulVehicleType::IETTBus) ? 46.0f
+		: (InType == EIstanbulVehicleType::ScooterCourier) ? 24.0f
+		: 34.0f;
+	const float WheelHalfW = (InType == EIstanbulVehicleType::IETTBus) ? 16.0f
+		: (InType == EIstanbulVehicleType::ScooterCourier) ? 8.0f
+		: 12.5f;
+	FIstanbulMeshUtils::AppendDetailedWheelMesh(TireSection, RimSection, WheelRadius, WheelHalfW, 16);
+
+	UMaterialInterface* RubberMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor(0.035f, 0.035f, 0.04f), 0.05f, 0.85f, 0.2f);
+	UMaterialInterface* AlloyMat  = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor(0.75f, 0.78f, 0.83f), 0.75f, 0.22f, 0.9f);
+
+	const float AxleX = (InType == EIstanbulVehicleType::YellowTaxi) ? 130.0f : (LengthCm * 0.32f);
+	const float AxleY = (InType == EIstanbulVehicleType::ScooterCourier) ? 0.0f : (WidthCm * 0.47f);
 
 	const FVector WPos[4] = {
-		FVector( AxleX, -AxleY, 32.0f),
-		FVector( AxleX,  AxleY, 32.0f),
-		FVector(-AxleX, -AxleY, 32.0f),
-		FVector(-AxleX,  AxleY, 32.0f)
+		FVector( AxleX, -AxleY, WheelRadius),
+		FVector( AxleX,  AxleY, WheelRadius),
+		FVector(-AxleX, -AxleY, WheelRadius),
+		FVector(-AxleX,  AxleY, WheelRadius)
 	};
 	for (int32 i = 0; i < 4; ++i)
 	{
-		if (WheelMeshes.IsValidIndex(i) && WheelMeshes[i])
+		if (WheelProcMeshes.IsValidIndex(i) && WheelProcMeshes[i])
 		{
-			WheelMeshes[i]->SetRelativeLocation(WPos[i]);
-			TintMesh(WheelMeshes[i], FLinearColor(0.04f, 0.04f, 0.05f));
+			UProceduralMeshComponent* W = WheelProcMeshes[i];
+			W->ClearAllMeshSections();
+			TireSection.CommitToComponent(W, 0, false, RubberMat);
+			RimSection.CommitToComponent(W, 1, false, AlloyMat);
+			W->SetRelativeLocation(WPos[i]);
+			W->SetRelativeRotation(FRotator::ZeroRotator);
 			if (InType == EIstanbulVehicleType::ScooterCourier && (i == 1 || i == 3))
 			{
-				WheelMeshes[i]->SetVisibility(false);
+				W->SetVisibility(false);
 			}
 		}
 	}
@@ -684,7 +792,7 @@ FString ATrafficVehicle::GetDisplayLabel() const
 {
 	switch (VehicleType)
 	{
-	case EIstanbulVehicleType::YellowTaxi:     return TEXT("Sarı Taksi");
+	case EIstanbulVehicleType::YellowTaxi:     return bIsCivilianVariant ? TEXT("Sivil Otomobil") : TEXT("Sarı Taksi");
 	case EIstanbulVehicleType::Dolmus:         return TEXT("Minibüs / Dolmuş");
 	case EIstanbulVehicleType::IETTBus:        return TEXT("İETT Otobüsü");
 	case EIstanbulVehicleType::DeliveryVan:    return TEXT("Kargo Panelvan");
@@ -720,12 +828,12 @@ void ATrafficVehicle::UpdateDistanceLOD(float DistToPlayerCm)
 		bUsingLowLOD = bShouldUseLowLOD;
 		if (VehicleProcMesh) VehicleProcMesh->SetVisibility(!bUsingLowLOD);
 		if (VehicleLodMesh)  VehicleLodMesh->SetVisibility(bUsingLowLOD);
-		for (int32 i = 0; i < WheelMeshes.Num(); ++i)
+		for (int32 i = 0; i < WheelProcMeshes.Num(); ++i)
 		{
-			if (WheelMeshes[i])
+			if (WheelProcMeshes[i])
 			{
 				const bool bHideScooterPair = (VehicleType == EIstanbulVehicleType::ScooterCourier && (i == 1 || i == 3));
-				WheelMeshes[i]->SetVisibility(!bUsingLowLOD && !bHideScooterPair);
+				WheelProcMeshes[i]->SetVisibility(!bUsingLowLOD && !bHideScooterPair);
 			}
 		}
 	}
@@ -829,8 +937,15 @@ void ATrafficVehicle::Tick(float DeltaSeconds)
 		const FVector End   = Start + GetActorForwardVector() * 1450.0f;
 		if (GetWorld()->SweepSingleByChannel(Hit, Start, End, FQuat::Identity, ECC_Visibility, FCollisionShape::MakeSphere(75.0f), Params))
 		{
-			const AActor* Blocker = Hit.GetActor();
-			if (Blocker && (Blocker->IsA<APawn>() || Blocker->IsA<ATrafficVehicle>()))
+			AActor* Blocker = Hit.GetActor();
+			if (ADestructibleStreetProp* Prop = Cast<ADestructibleStreetProp>(Blocker))
+			{
+				if (Hit.Distance < 120.0f && FMath::Abs(CurrentSpeedCms) * 0.036f >= Prop->KnockOverSpeedThresholdKmh)
+				{
+					Prop->TriggerKnockOver(Hit.ImpactPoint, GetActorForwardVector() * CurrentSpeedCms, this);
+				}
+			}
+			else if (Blocker && (Blocker->IsA<APawn>() || Blocker->IsA<ATrafficVehicle>()))
 			{
 				const float GapCm = Hit.Distance;
 				// Low-patience tailgater follows closer behind the player
@@ -933,16 +1048,16 @@ void ATrafficVehicle::Tick(float DeltaSeconds)
 	const FRotator NewRot = FMath::RInterpTo(GetActorRotation(), DesiredRot, DeltaSeconds, 6.0f);
 	SetActorLocationAndRotation(NewLoc, NewRot, false);
 
-	// Wheel rotation & front wheel steering (disabled beyond 80m LOD distance)
+	// 5-Spoke Wheel rotation & front wheel steering (disabled beyond 80m LOD distance)
 	if (!bUsingLowLOD)
 	{
-		WheelSpinDeg = FMath::Fmod(WheelSpinDeg + (CurrentSpeedCms * DeltaSeconds / 31.0f) * (180.0f / PI), 360.0f);
-		for (int32 i = 0; i < WheelMeshes.Num(); ++i)
+		WheelSpinDeg = FMath::Fmod(WheelSpinDeg - (CurrentSpeedCms * DeltaSeconds / 34.0f) * (180.0f / PI), 360.0f);
+		for (int32 i = 0; i < WheelProcMeshes.Num(); ++i)
 		{
-			if (UStaticMeshComponent* W = WheelMeshes[i])
+			if (UProceduralMeshComponent* W = WheelProcMeshes[i])
 			{
 				const float FrontSteer = (i < 2) ? CurrentSteerYawDeg : 0.0f;
-				W->SetRelativeRotation(FRotator(WheelSpinDeg, FrontSteer, 90.0f));
+				W->SetRelativeRotation(FRotator(WheelSpinDeg, FrontSteer, 0.0f));
 			}
 		}
 	}
@@ -1007,6 +1122,42 @@ int32 AIstanbulTrafficManager::SpawnExtraTrafficByType(EIstanbulVehicleType Type
 		}
 	}
 	return Spawned;
+}
+
+void AIstanbulTrafficManager::PopulateAdditionalLoopTraffic(const TArray<FVector>& LoopWaypoints, float BaseSpeedKmh, int32 VehicleCount, float LateralOffsetCm)
+{
+	UWorld* W = GetWorld();
+	if (!W || LoopWaypoints.Num() < 2 || VehicleCount <= 0) return;
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	static const EIstanbulVehicleType ArchetypeCycle[5] = {
+		EIstanbulVehicleType::YellowTaxi,
+		EIstanbulVehicleType::Dolmus,
+		EIstanbulVehicleType::IETTBus,
+		EIstanbulVehicleType::DeliveryVan,
+		EIstanbulVehicleType::ScooterCourier
+	};
+
+	for (int32 i = 0; i < VehicleCount; ++i)
+	{
+		const int32 Idx = (i * FMath::Max(1, LoopWaypoints.Num() / VehicleCount)) % LoopWaypoints.Num();
+		const int32 NextIdx = (Idx + 1) % LoopWaypoints.Num();
+		const FVector Dir = (LoopWaypoints[NextIdx] - LoopWaypoints[Idx]).GetSafeNormal2D();
+		const FVector Right(-Dir.Y, Dir.X, 0.0f);
+		const float Lat = (i % 2 == 0) ? LateralOffsetCm : -LateralOffsetCm * 0.85f;
+		const FVector Pos = LoopWaypoints[Idx] + Right * Lat + FVector(0.0f, 0.0f, 12.0f);
+		const EIstanbulVehicleType VType = ArchetypeCycle[(Vehicles.Num() + i) % 5];
+
+		if (ATrafficVehicle* V = W->SpawnActor<ATrafficVehicle>(Pos, Dir.Rotation(), Params))
+		{
+			V->Tags.Add(ATestSceneBuilder::GeneratedActorTag);
+			V->InitializeTrafficVehicle(VType, LoopWaypoints, BaseSpeedKmh + (i % 3) * 4.5f, Lat, false, NextIdx);
+			V->OnHornHonked.AddDynamic(this, &AIstanbulTrafficManager::ForwardHornEvent);
+			Vehicles.Add(V);
+		}
+	}
 }
 
 void AIstanbulTrafficManager::Tick(float DeltaSeconds)

@@ -6,6 +6,7 @@
 #include "Core/IstanbulMeshUtils.h"
 #include "IstanbulTrafficManager.generated.h"
 
+class UBoxComponent;
 class UProceduralMeshComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -18,7 +19,7 @@ class ATrafficVehicle;
 UENUM(BlueprintType)
 enum class EIstanbulVehicleType : uint8
 {
-	YellowTaxi     UMETA(DisplayName = "Sarı Taksi (#F5C400)"),
+	YellowTaxi     UMETA(DisplayName = "Sarı Taksi / Sivil Sedan"),
 	IETTBus        UMETA(DisplayName = "İETT Belediye Otobüsü (#C8102E / Beyaz)"),
 	Dolmus         UMETA(DisplayName = "Sarı Minibüs / Dolmuş (#F2C618)"),
 	DeliveryVan    UMETA(DisplayName = "Kargo / Panelvan (Çift Sıra Park)"),
@@ -101,8 +102,8 @@ public:
 };
 
 /**
- * Mid-poly procedural Istanbul AI Traffic Vehicle with 80m LOD swap, license plates,
- * chokepoint yield/nudge AI, and UHornResponseComponent (Task 2.1 - 2.3).
+ * Contoured 4-slot procedural Istanbul AI Traffic Vehicle with solid collision, 5-spoke rotating wheels,
+ * 80m LOD swap, license plates, chokepoint yield/nudge AI, and UHornResponseComponent.
  */
 UCLASS()
 class ISTANBULTAXI_API ATrafficVehicle : public AActor
@@ -115,15 +116,42 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	/**
-	 * Shared procedural vehicle mesh builder used by both ATrafficVehicle and ATaxiPawn.
-	 * Generates high-detail beveled geometry (hood, cabin, trunk, bumpers, mirrors, wheel arches, license plates)
-	 * and a low-poly 80m LOD mesh section.
+	 * Multi-slot contoured vehicle mesh builder used by both ATrafficVehicle and ATaxiPawn:
+	 * - Slot 0 (OutPaintSection): Glossy Automotive Paint (Roughness=0.2, Metallic=0.4)
+	 * - Slot 1 (OutGlassSection): Dark Tinted Cabin Glass (Roughness=0.05, Specular=0.9)
+	 * - Slot 2 (OutTrimSection):  Matte Black Rubber & Trim (Roughness=0.85)
+	 * - Slot 3 (OutLightsSection): Emissive Headlights, Taillights, Blinkers, Plates & Roof Sign
 	 */
+	static void BuildIstanbulVehicleMultiSlotSections(
+		EIstanbulVehicleType InType,
+		int32 StyleSeed,
+		bool bForcePlayerYellowTaxi,
+		FIstanbulMeshSectionData& OutPaintSection,
+		FIstanbulMeshSectionData& OutGlassSection,
+		FIstanbulMeshSectionData& OutTrimSection,
+		FIstanbulMeshSectionData& OutLightsSection,
+		FIstanbulMeshSectionData& OutLowLod,
+		FLinearColor& OutPrimaryPaintColor,
+		float& OutLengthCm,
+		float& OutWidthCm);
+
+	/** Legacy 2-section helper preserved for compatibility; merges all 4 high-detail slots into OutHighDetail. */
 	static void BuildIstanbulVehicleMeshSections(EIstanbulVehicleType InType, int32 StyleSeed,
 		FIstanbulMeshSectionData& OutHighDetail, FIstanbulMeshSectionData& OutLowLod,
 		float& OutLengthCm, float& OutWidthCm);
 
-	/** Builds the mid-poly beveled procedural mesh + 80m LOD mesh for the specified Istanbul vehicle archetype. */
+	/** Commits all 4 PBR/Emissive material slots onto the target UProceduralMeshComponent. */
+	static void CommitMultiSlotVehicleMesh(
+		UObject* MaterialOuter,
+		UProceduralMeshComponent* TargetPMC,
+		bool bCreateCollision,
+		const FLinearColor& PrimaryPaintColor,
+		const FIstanbulMeshSectionData& PaintSection,
+		const FIstanbulMeshSectionData& GlassSection,
+		const FIstanbulMeshSectionData& TrimSection,
+		const FIstanbulMeshSectionData& LightsSection);
+
+	/** Builds the contoured 4-slot procedural mesh + 5-spoke wheels + 80m LOD mesh for the specified Istanbul vehicle archetype. */
 	UFUNCTION(BlueprintCallable, Category = "Traffic|Visuals")
 	void BuildVisualMesh(EIstanbulVehicleType InType);
 
@@ -163,7 +191,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> Root;
 
-	/** High-detail (< 80m) single-draw-call merged beveled body mesh. */
+	/** Solid 3D vehicle bounding collision box (BlockAllDynamic) so the player never clips through AI traffic. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UBoxComponent> SolidVehicleCollision;
+
+	/** High-detail (< 80m) 4-slot contoured procedural body mesh. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UProceduralMeshComponent> VehicleProcMesh;
 
@@ -185,9 +217,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTextRenderComponent> RouteSignText;
 
-	/** Rotating & front-steering wheel cylinders (disabled beyond 80m LOD distance). */
+	/** Rotating & front-steering 5-spoke procedural wheel meshes (disabled beyond 80m LOD distance). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TArray<TObjectPtr<UStaticMeshComponent>> WheelMeshes;
+	TArray<TObjectPtr<UProceduralMeshComponent>> WheelProcMeshes;
 
 	/** Blinking hazard lamps toggled by timer for double-parked delivery vans and dolmuş stops. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -199,6 +231,7 @@ private:
 
 	EIstanbulVehicleType VehicleType = EIstanbulVehicleType::YellowTaxi;
 	int32 InstanceStyleSeed = 1453;
+	bool bIsCivilianVariant = false;
 	TArray<FVector> Waypoints;
 	int32 CurrentWaypointIdx = 0;
 
@@ -237,7 +270,7 @@ private:
 };
 
 /**
- * Coordinates the city's active traffic loops, 4 active chokepoints, horn broadcasts, and debug visualization.
+ * Coordinates the city's active traffic loops, active chokepoints, horn broadcasts, and debug visualization.
  */
 UCLASS()
 class ISTANBULTAXI_API AIstanbulTrafficManager : public AActor
@@ -251,6 +284,9 @@ public:
 
 	void PopulateIstanbulTraffic(const FVector& Origin, const TArray<FVector>& BoulevardLoopRight,
 		const TArray<FVector>& BoulevardLoopLeft, const TArray<FVector>& SideStreetLoop);
+
+	/** Spawns additional live traffic vehicles along an arbitrary loop (e.g. Galata Bridge, Beşiktaş Highway, Bosphorus Bridge). */
+	void PopulateAdditionalLoopTraffic(const TArray<FVector>& LoopWaypoints, float BaseSpeedKmh, int32 VehicleCount, float LateralOffsetCm);
 
 	/** Spawns additional live traffic vehicles of the requested type (used by Istanbul.SpawnTraffic). */
 	UFUNCTION(BlueprintCallable, Category = "Traffic")

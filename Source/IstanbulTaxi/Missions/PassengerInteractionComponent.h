@@ -89,6 +89,10 @@ public:
 	UFUNCTION()
 	void NotifyVehicleScrape(AActor* ScrapedActor, float ScrapeSpeedKmh);
 
+	/** Called when the player taxi knocks over a streetlight, bollard (duba), or traffic sign. */
+	UFUNCTION(BlueprintCallable, Category = "Passenger")
+	void NotifyStreetPropKnockedOver(const FString& PropTurkishName);
+
 	// ---- Queries for HUD & Mission Settlement ----
 	UFUNCTION(BlueprintPure, Category = "Passenger") bool IsPassengerOnboard() const { return bPassengerOnboard; }
 	UFUNCTION(BlueprintPure, Category = "Passenger") EPassengerArchetypeType GetArchetype() const { return CurrentArchetype; }

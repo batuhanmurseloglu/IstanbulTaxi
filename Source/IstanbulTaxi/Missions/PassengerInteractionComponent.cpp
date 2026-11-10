@@ -356,6 +356,24 @@ void UPassengerInteractionComponent::NotifyVehicleScrape(AActor* /*ScrapedActor*
 	}
 }
 
+void UPassengerInteractionComponent::NotifyStreetPropKnockedOver(const FString& PropTurkishName)
+{
+	if (bPassengerOnboard)
+	{
+		ComfortScore  = FMath::Clamp(ComfortScore - 11.0f, 0.0f, 100.0f);
+		PatienceScore = FMath::Clamp(PatienceScore - 9.0f, 0.0f, 100.0f);
+	}
+
+	if (CurrentArchetype == EPassengerArchetypeType::PickyAuntie && bPassengerOnboard)
+	{
+		SayLine(FString::Printf(TEXT("Ayy! Aman kaptan direği devirdin (%s)! Belediye ceza yazacak şimdi!"), *PropTurkishName), 6.0f);
+	}
+	else
+	{
+		SayLine(FString::Printf(TEXT("Aman kaptan direği devirdin (%s)! Önüne baksana usta!"), *PropTurkishName), 5.5f);
+	}
+}
+
 void UPassengerInteractionComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);

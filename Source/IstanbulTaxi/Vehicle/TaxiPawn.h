@@ -5,10 +5,13 @@
 #include "GameplayTagContainer.h"
 #include "TaxiPawn.generated.h"
 
+class UBoxComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UAudioComponent;
 class UStaticMeshComponent;
+class USpotLightComponent;
+class UPointLightComponent;
 class USoundBase;
 class UInputMappingContext;
 class UInputAction;
@@ -26,12 +29,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaxiScrape, AActor*, ScrapedActo
 
 /**
  * The player's taxi: ~1350 kg Egea-class FWD sedan on Chaos, soft suspension,
- * per-wheel surface response, chase + interior cameras.
- *
- * Zero-Asset Prototype Support:
- * If no SkeletalMesh is assigned yet, ATaxiPawn automatically builds a visible yellow taxi
- * placeholder out of Engine BasicShapes (chassis, cabin, roof "TAKSİ" sign, 4 rotating/steering wheels)
- * and falls back to simple physics propulsion when Chaos has no skeletal wheel bones to step.
+ * per-wheel surface response, chase + interior cameras, solid 3D collision sweep,
+ * 4-slot contoured PBR body mesh, 5-spoke rotating alloy wheels, and real headlight cones.
  */
 UCLASS()
 class ISTANBULTAXI_API ATaxiPawn : public AWheeledVehiclePawn
@@ -44,6 +43,15 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void NotifyControllerChanged() override;
+	virtual void NotifyHit(
+		class UPrimitiveComponent* MyComp,
+		AActor* Other,
+		class UPrimitiveComponent* OtherComp,
+		bool bSelfMoved,
+		FVector HitLocation,
+		FVector HitNormal,
+		FVector NormalImpulse,
+		const FHitResult& Hit) override;
 
 	UFUNCTION(BlueprintPure, Category = "Taxi")
 	float GetSpeedKmh() const;
@@ -104,7 +112,23 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	// ---- Components ----
+	// ---- Solid Collision & Lighting Components ----
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Collision")
+	TObjectPtr<UBoxComponent> SolidChassisCollision;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Lights")
+	TObjectPtr<USpotLightComponent> LeftHeadlightSpot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Lights")
+	TObjectPtr<USpotLightComponent> RightHeadlightSpot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Lights")
+	TObjectPtr<UPointLightComponent> LeftBrakeLightPoint;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Lights")
+	TObjectPtr<UPointLightComponent> RightBrakeLightPoint;
+
+	// ---- Cameras & Systems ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USpringArmComponent> ChaseSpringArm;
 
@@ -131,10 +155,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UAudioComponent> RoadNoiseAudio;
 
-	// ---- Placeholder Visual Components (automatically hidden when a SkeletalMesh is assigned) ----
-	/** Refined beveled Sarı Taksi procedural mesh (Task 2.1, shared with ATrafficVehicle::BuildIstanbulVehicleMeshSections). */
+	// ---- Procedural 4-Slot Vehicle Body & 5-Spoke Alloy Wheels ----
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
 	TObjectPtr<UProceduralMeshComponent> TaxiBodyProcMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
+	TArray<TObjectPtr<UProceduralMeshComponent>> VisualWheelProcMeshes;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Placeholder")
 	TObjectPtr<UStaticMeshComponent> PlaceholderChassis;
@@ -273,6 +299,7 @@ private:
 	UFUNCTION()
 	void HandleSurfaceImpact(int32 WheelIndex, FGameplayTag Surface, float Severity);
 
+	void HandleSolidObstacleCollision(AActor* HitActor, const FVector& ImpactPoint, const FVector& ImpactNormal, float ImpactSpeedKmh, bool bHeadOnImpact);
 	void ApplyCameraMode();
 	void UpdateFeel(float DeltaSeconds);
 	void UpdatePlaceholderDriveAndVisuals(float DeltaSeconds);
@@ -293,6 +320,7 @@ private:
 	float HornHoldDurationSec = 0.0f;
 	float NearMissCheckTimer = 0.0f;
 	float ScrapeCooldownSec = 0.0f;
+	float CollisionWarningCooldownSec = 0.0f;
 
 	bool bInteriorCamera = false;
 	float WindowOpenRatio = 0.0f;
