@@ -347,6 +347,25 @@ void ATestSceneBuilder::PopulateDefaultRoadSpecs(const FVector& Origin)
 		Origin + FVector(24800.0f, 0.0f, 0.0f),
 		16.0f, 22.0f, TEXT("Surface_Asphalt"), false));
 
+	// Steep Cobblestone Climb from Galata Bridge / Karaköy up to Galata Tower Summit & Loop back to Boulevard
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Galata_BridgeHillClimb_14Deg"),
+		Origin + FVector(8800.0f, -18000.0f, 0.0f),
+		Origin + FVector(8800.0f, -24000.0f, 1480.0f),
+		9.0f, 20.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Galata_TowerSummitRidge"),
+		Origin + FVector(8800.0f, -24000.0f, 1480.0f),
+		Origin + FVector(24800.0f, -24000.0f, 1480.0f),
+		10.0f, 22.0f, TEXT("Surface_Cobblestone"), false));
+
+	RoadSegments.Add(FIstanbulRoadSegmentSpec(
+		TEXT("Galata_TophaneHillDescent_14Deg"),
+		Origin + FVector(24800.0f, -24000.0f, 1480.0f),
+		Origin + FVector(24800.0f, -18000.0f, 0.0f),
+		9.0f, 20.0f, TEXT("Surface_Cobblestone"), false));
+
 	// =========================================================================
 	// 3. TARİHİ YARIMADA (SİRKECİ -> SULTANAHMET PLAZA -> BEŞİKTAŞ INLAND LOOP)
 	// =========================================================================
@@ -591,11 +610,11 @@ void ATestSceneBuilder::PopulateDefaultDistrictsAndBuildings(const FVector& Orig
 		}
 	}
 
-	// Row C: Karaköy Kemankeş Waterfront Commercial Facade (across Galata Bridge at Y = -196.5m)
+	// Row C: Karaköy Kemankeş Waterfront Commercial Facade (between Karaköy Quay Y=-180m and Galata Summit Y=-240m)
 	for (int32 i = 0; i < 5; ++i)
 	{
 		FIstanbulBuildingSpec KSpec;
-		KSpec.BaseLocation = Origin + FVector(11400.0f + i * 2400.0f, -19650.0f, 0.0f);
+		KSpec.BaseLocation = Origin + FVector(11400.0f + i * 2400.0f, -20800.0f, 0.0f);
 		KSpec.YawDegrees = 90.0f;
 		KSpec.FrontageWidthM = 15.6f;
 		KSpec.DepthM = 12.0f;
@@ -727,7 +746,7 @@ void ATestSceneBuilder::SpawnWorldBoundaryBlockers(const FVector& Origin)
 	SpawnHistoricalStoneWall(TEXT("Boundary_EastBosphorusSpanWall"),
 		Origin + FVector(62350.0f, 3800.0f, 1660.0f), FRotator(0.0f, 90.0f, 0.0f), 90.0f, 3.6f);
 	SpawnHistoricalStoneWall(TEXT("Boundary_KarakoySouthQuayWall"),
-		Origin + FVector(10400.0f, -19150.0f, 180.0f), FRotator::ZeroRotator, 310.0f, 3.6f);
+		Origin + FVector(10400.0f, -25600.0f, 1660.0f), FRotator::ZeroRotator, 310.0f, 3.6f);
 }
 
 ADestructibleStreetProp* ATestSceneBuilder::SpawnDestructibleProp(EStreetPropType PropType, const FString& Label,
@@ -1652,7 +1671,8 @@ void ATestSceneBuilder::BuildPrototypeScene()
 	// =========================================================================
 	const FVector MosqueHillPos = Origin + FVector(11800.0f, 10600.0f, 1290.0f);
 	SpawnDetailedMosqueComplex(MosqueHillPos);
-	SpawnGalataTowerLandmark(Origin + FVector(3500.0f, 9600.0f, 1290.0f));
+	// Monumental cylindrical Galata Tower landmark at the summit of the Galata Bridge cobblestone slope loop
+	SpawnGalataTowerLandmark(Origin + FVector(16800.0f, -26400.0f, 1480.0f));
 
 	if (!UGameplayStatics::GetActorOfClass(W, AMosqueActor::StaticClass()))
 	{
