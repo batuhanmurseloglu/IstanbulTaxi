@@ -185,6 +185,8 @@ private:
 	void SpawnFerryPierAndVessel(const FString& PierPrefix, const FVector& PierLocation, float YawDeg);
 	void SpawnDetailedMosqueComplex(const FVector& HilltopBase);
 	void SpawnHGSBridgeCanopy(const FVector& GateCenter);
+	void SpawnAnimatedPedestriansAndHailingPassenger(const FVector& Origin);
+	void SpawnBosphorusMovingFerries(const FVector& Origin);
 
 	TArray<FVector> StreetLampLightWorldPositions;
 	int32 SpawnedActorCount = 0;

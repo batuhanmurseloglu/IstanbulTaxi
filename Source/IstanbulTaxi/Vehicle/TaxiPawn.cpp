@@ -7,6 +7,7 @@
 #include "Missions/PassengerMissionSubsystem.h"
 #include "Missions/PassengerInteractionComponent.h"
 #include "Environment/TimeOfDaySubsystem.h"
+#include "Environment/WeatherSubsystem.h"
 #include "Environment/DestructibleStreetProp.h"
 #include "Audio/AudioAmbienceSubsystem.h"
 #include "Traffic/IstanbulTrafficManager.h"
@@ -253,6 +254,33 @@ ATaxiPawn::ATaxiPawn()
 	InteriorCamera->FieldOfView = 85.0f;
 	InteriorCamera->SetAutoActivate(false);
 
+	HoodCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("HoodCamera"));
+	HoodCamera->SetupAttachment(GetMesh());
+	HoodCamera->SetRelativeLocation(FVector(145.0f, 0.0f, 85.0f));
+	HoodCamera->FieldOfView = 85.0f;
+	HoodCamera->SetAutoActivate(false);
+
+	// Cockpit / Interior Dashboard & Controls
+	InteriorDashboardProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("InteriorDashboardProcMesh"));
+	InteriorDashboardProcMesh->SetupAttachment(GetMesh());
+	InteriorDashboardProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	SteeringWheelProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("SteeringWheelProcMesh"));
+	SteeringWheelProcMesh->SetupAttachment(GetMesh());
+	SteeringWheelProcMesh->SetRelativeLocation(FVector(22.0f, -36.0f, 96.0f));
+	SteeringWheelProcMesh->SetRelativeRotation(FRotator(-22.0f, 0.0f, 0.0f));
+	SteeringWheelProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	LeftWiperProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("LeftWiperProcMesh"));
+	LeftWiperProcMesh->SetupAttachment(GetMesh());
+	LeftWiperProcMesh->SetRelativeLocation(FVector(65.0f, -38.0f, 91.0f));
+	LeftWiperProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	RightWiperProcMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RightWiperProcMesh"));
+	RightWiperProcMesh->SetupAttachment(GetMesh());
+	RightWiperProcMesh->SetRelativeLocation(FVector(65.0f, 12.0f, 91.0f));
+	RightWiperProcMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// --- Systems ---
 	SurfaceComponent = CreateDefaultSubobject<UTaxiSurfaceComponent>(TEXT("SurfaceComponent"));
 	Taximeter = CreateDefaultSubobject<UTaximeterComponent>(TEXT("Taximeter"));
@@ -320,6 +348,63 @@ void ATaxiPawn::BeginPlay()
 				RimSection.CommitToComponent(WP, 1, false, AlloyMat);
 				WP->SetVisibility(true);
 			}
+		}
+
+		// Procedural 3D Interior Dashboard, Steering Wheel & Animated Wipers
+		if (InteriorDashboardProcMesh)
+		{
+			FIstanbulMeshSectionData DashSec;
+			const FLinearColor DashDark(0.08f, 0.08f, 0.09f);
+			const FLinearColor MeterBoxCol(0.12f, 0.12f, 0.14f);
+			const FLinearColor MirrorFrame(0.15f, 0.15f, 0.17f);
+			const FLinearColor MirrorGlass(0.75f, 0.85f, 0.95f);
+
+			// Main curved dashboard fascia
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(32.0f, 0.0f, 88.0f)), FVector(26.0f, 74.0f, 15.0f), 4.0f, DashDark);
+			// Instrument binnacle hood over steering column
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(26.0f, -36.0f, 100.0f)), FVector(16.0f, 22.0f, 7.0f), 2.5f, DashDark);
+			// Center console descending between driver and passenger seats
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(0.0f, 0.0f, 62.0f)), FVector(38.0f, 14.0f, 20.0f), 3.0f, DashDark);
+			// 3D physical taximeter casing on center dash
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(38.0f, 0.0f, 98.0f)), FVector(4.5f, 14.0f, 6.0f), 1.0f, MeterBoxCol);
+			// Rearview mirror mounted from windshield header
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(18.0f, 0.0f, 134.0f)), FVector(2.0f, 12.0f, 3.2f), 0.8f, MirrorFrame);
+			FIstanbulMeshUtils::AppendBeveledBox(DashSec, FTransform(FVector(16.8f, 0.0f, 134.0f)), FVector(0.8f, 11.2f, 2.6f), 0.5f, MirrorGlass);
+
+			UMaterialInterface* DashMat = FIstanbulMeshUtils::CreatePBRMaterial(this, DashDark, 0.05f, 0.88f, 0.2f);
+			DashSec.CommitToComponent(InteriorDashboardProcMesh, 0, false, DashMat);
+		}
+
+		if (SteeringWheelProcMesh)
+		{
+			FIstanbulMeshSectionData WheelSec;
+			const FLinearColor WheelRimCol(0.05f, 0.05f, 0.06f);
+			const FLinearColor SpokesCol(0.22f, 0.22f, 0.25f);
+			// Steering wheel rim (34cm diameter outer torus)
+			FIstanbulMeshUtils::AppendCylinder(WheelSec, FTransform(FRotator(90.0f, 0.0f, 0.0f), FVector(0.0f, 0.0f, 0.0f)), 17.0f, 1.8f, 16, WheelRimCol);
+			// Center boss / horn pad
+			FIstanbulMeshUtils::AppendCylinder(WheelSec, FTransform(FRotator(90.0f, 0.0f, 0.0f), FVector(0.0f, 0.0f, -1.0f)), 6.0f, 2.2f, 12, SpokesCol);
+			// 3 Spokes
+			FIstanbulMeshUtils::AppendBeveledBox(WheelSec, FTransform(FVector(0.0f, 0.0f, 0.0f)), FVector(1.2f, 15.0f, 1.2f), 0.4f, SpokesCol);
+			FIstanbulMeshUtils::AppendBeveledBox(WheelSec, FTransform(FVector(0.0f, 0.0f, -8.0f)), FVector(1.2f, 2.0f, 7.5f), 0.4f, SpokesCol);
+
+			UMaterialInterface* WheelMat = FIstanbulMeshUtils::CreatePBRMaterial(this, WheelRimCol, 0.05f, 0.80f, 0.2f);
+			WheelSec.CommitToComponent(SteeringWheelProcMesh, 0, false, WheelMat);
+		}
+
+		// Windshield Wipers
+		FIstanbulMeshSectionData WiperSec;
+		const FLinearColor WiperBladeCol(0.06f, 0.06f, 0.07f);
+		FIstanbulMeshUtils::AppendBeveledBox(WiperSec, FTransform(FRotator(-40.0f, 0.0f, 0.0f), FVector(18.0f, 0.0f, 16.0f)), FVector(20.0f, 1.2f, 0.8f), 0.3f, WiperBladeCol);
+		UMaterialInterface* WiperMat = FIstanbulMeshUtils::CreatePBRMaterial(this, WiperBladeCol, 0.1f, 0.7f, 0.3f);
+
+		if (LeftWiperProcMesh)
+		{
+			WiperSec.CommitToComponent(LeftWiperProcMesh, 0, false, WiperMat);
+		}
+		if (RightWiperProcMesh)
+		{
+			WiperSec.CommitToComponent(RightWiperProcMesh, 0, false, WiperMat);
 		}
 
 		// Ensure legacy blocky static mesh placeholders remain hidden
@@ -481,6 +566,7 @@ void ATaxiPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	PlayerInputComponent->BindAction(TEXT("Handbrake"),       IE_Pressed,  this, &ATaxiPawn::LegacyHandbrakePressed);
 	PlayerInputComponent->BindAction(TEXT("Handbrake"),       IE_Released, this, &ATaxiPawn::LegacyHandbrakeReleased);
 	PlayerInputComponent->BindAction(TEXT("ToggleCamera"),    IE_Pressed,  this, &ATaxiPawn::LegacyToggleCamera);
+	PlayerInputComponent->BindAction(TEXT("ToggleWeather"),   IE_Pressed,  this, &ATaxiPawn::LegacyToggleWeather);
 	PlayerInputComponent->BindAction(TEXT("ResetVehicle"),    IE_Pressed,  this, &ATaxiPawn::LegacyReset);
 	PlayerInputComponent->BindAction(TEXT("ToggleTaximeter"), IE_Pressed,  this, &ATaxiPawn::LegacyTaximeterToggle);
 	PlayerInputComponent->BindAction(TEXT("PauseTaximeter"),  IE_Pressed,  this, &ATaxiPawn::LegacyTaximeterPause);
@@ -871,6 +957,34 @@ void ATaxiPawn::UpdatePlaceholderDriveAndVisuals(float DeltaSeconds)
 	const float LatRoll   = -SmoothedSteer * FMath::Clamp(FMath::Abs(PlaceholderForwardSpeedCms) / 1500.0f, 0.0f, 1.0f) * 3.2f;
 	if (TaxiBodyProcMesh) TaxiBodyProcMesh->SetRelativeRotation(FRotator(LongPitch, 0.0f, LatRoll));
 
+	// Real-time animated steering wheel rotation with A/D input
+	if (SteeringWheelProcMesh)
+	{
+		SteeringWheelProcMesh->SetRelativeRotation(FRotator(-22.0f, 0.0f, -SmoothedSteer * 110.0f));
+	}
+
+	// Dynamic animated windshield wipers during rain or when weather is wet
+	bool bShouldWipe = false;
+	if (UWorld* W = GetWorld())
+	{
+		if (UWeatherSubsystem* WeatherSub = W->GetSubsystem<UWeatherSubsystem>())
+		{
+			bShouldWipe = WeatherSub->IsRaining() || (WeatherSub->GetWetness() > 0.4f);
+		}
+	}
+	if (bShouldWipe)
+	{
+		WiperCycleTime += DeltaSeconds * 5.2f;
+		const float WiperAngle = FMath::Abs(FMath::Sin(WiperCycleTime)) * 68.0f;
+		if (LeftWiperProcMesh)  LeftWiperProcMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, WiperAngle));
+		if (RightWiperProcMesh) RightWiperProcMesh->SetRelativeRotation(FRotator(0.0f, 0.0f, WiperAngle));
+	}
+	else
+	{
+		if (LeftWiperProcMesh)  LeftWiperProcMesh->SetRelativeRotation(FRotator::ZeroRotator);
+		if (RightWiperProcMesh) RightWiperProcMesh->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+
 	PlaceholderWheelSpinDeg = FMath::Fmod(PlaceholderWheelSpinDeg - (PlaceholderForwardSpeedCms * DeltaSeconds / 35.0f) * (180.0f / PI), 360.0f);
 	for (int32 i = 0; i < VisualWheelProcMeshes.Num(); ++i)
 	{
@@ -941,8 +1055,11 @@ void ATaxiPawn::HandleSurfaceImpact(int32 WheelIndex, FGameplayTag Surface, floa
 
 void ATaxiPawn::ApplyCameraMode()
 {
-	ChaseCamera->SetActive(!bInteriorCamera);
-	InteriorCamera->SetActive(bInteriorCamera);
+	ChaseCamera->SetActive(CameraMode == ETaxiCameraViewMode::ThirdPersonChase);
+	HoodCamera->SetActive(CameraMode == ETaxiCameraViewMode::HoodBumper);
+	InteriorCamera->SetActive(CameraMode == ETaxiCameraViewMode::InteriorDriver);
+
+	bInteriorCamera = (CameraMode == ETaxiCameraViewMode::InteriorDriver);
 	InteriorLook = FRotator::ZeroRotator;
 	SyncCabinAudioState();
 }
@@ -1072,8 +1189,30 @@ void ATaxiPawn::LegacyHandbrakeReleased()
 
 void ATaxiPawn::LegacyToggleCamera()
 {
-	bInteriorCamera = !bInteriorCamera;
+	const uint8 NextMode = (static_cast<uint8>(CameraMode) + 1) % 3;
+	CameraMode = static_cast<ETaxiCameraViewMode>(NextMode);
 	ApplyCameraMode();
+
+	if (AIstanbulTaxiHUD* HUD = Cast<AIstanbulTaxiHUD>(UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetHUD()))
+	{
+		static const TCHAR* CameraModeNames[3] = {
+			TEXT("Kamera: Dış Takip (Chase Cam)"),
+			TEXT("Kamera: Kaput / Tampon Görünümü (Hood Cam)"),
+			TEXT("Kamera: Sürücü Kokpit / İç Görünüm (Cockpit View)")
+		};
+		HUD->PushToast(CameraModeNames[NextMode], FLinearColor(0.95f, 0.85f, 0.35f), 2.5f);
+	}
+}
+
+void ATaxiPawn::LegacyToggleWeather()
+{
+	if (UWorld* W = GetWorld())
+	{
+		if (UWeatherSubsystem* WeatherSub = W->GetSubsystem<UWeatherSubsystem>())
+		{
+			WeatherSub->CycleWeather();
+		}
+	}
 }
 
 void ATaxiPawn::LegacyReset()

@@ -3,6 +3,9 @@
 #include "Environment/TimeOfDayActor.h"
 #include "Environment/TimeOfDaySubsystem.h"
 #include "Environment/BosphorusWaterVolume.h"
+#include "Environment/WeatherSubsystem.h"
+#include "Environment/IstanbulFerry.h"
+#include "AI/IstanbulPedestrian.h"
 #include "Taximeter/TollGateVolume.h"
 #include "Audio/DistrictAmbienceVolume.h"
 #include "Audio/DistrictAmbienceDataAsset.h"
@@ -1630,10 +1633,15 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		Origin + FVector(15950.0f, 3450.0f, 18.0f), 180.0f, Rng);
 
 	// Commit procedural road, sidewalk, cobblestone, road markings, and catenary cable sections with PBR materials!
-	UMaterialInterface* AsphaltMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.78f, 0.25f);
-	UMaterialInterface* SidewalkMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.85f, 0.20f);
-	UMaterialInterface* CobbleMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.72f, 0.35f);
-	UMaterialInterface* MarkingsMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.55f, 0.35f);
+	UMaterialInstanceDynamic* AsphaltMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.78f, 0.25f);
+	UMaterialInstanceDynamic* SidewalkMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.85f, 0.20f);
+	UMaterialInstanceDynamic* CobbleMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.72f, 0.35f);
+	UMaterialInstanceDynamic* MarkingsMat = FIstanbulMeshUtils::CreatePBRMaterial(this, FLinearColor::White, 0.0f, 0.55f, 0.35f);
+
+	if (UWeatherSubsystem* WeatherSub = W->GetSubsystem<UWeatherSubsystem>())
+	{
+		WeatherSub->RegisterDynamicRoadMaterials(AsphaltMat, SidewalkMat, CobbleMat);
+	}
 
 	AsphaltRoadSection.CommitToComponent(CorridorProcMesh, 0, true, AsphaltMat);
 	SidewalkSection.CommitToComponent(CorridorProcMesh, 1, true, SidewalkMat);
@@ -1818,6 +1826,12 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		}
 	}
 
+	// 6. Spawn Articulated Pedestrians, Crosswalk Walkers & Visual Hailing Passenger
+	SpawnAnimatedPedestriansAndHailingPassenger(Origin);
+
+	// 7. Spawn Moving Bosphorus Passenger Ferries (Şehir Hatları Vapuru)
+	SpawnBosphorusMovingFerries(Origin);
+
 	int32 CountTaxi = 0, CountBus = 0, CountDolmus = 0, CountVan = 0, CountScooter = 0, ChokepointCount = 0;
 	if (AIstanbulTrafficManager* TM = Cast<AIstanbulTrafficManager>(UGameplayStatics::GetActorOfClass(W, AIstanbulTrafficManager::StaticClass())))
 	{
@@ -1845,4 +1859,118 @@ void ATestSceneBuilder::BuildPrototypeScene()
 		TrafficCount, CountTaxi, CountBus, CountDolmus, CountVan, CountScooter,
 		SpawnedActorCount, SpawnedHISMInstanceCount, SpawnedProcMeshSectionCount, StreetLampLightWorldPositions.Num(),
 		bNetworkValid ? TEXT("PASS") : TEXT("FAIL"));
+}
+
+void ATestSceneBuilder::SpawnAnimatedPedestriansAndHailingPassenger(const FVector& Origin)
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// 1. Sidewalk Pedestrians along Eminönü Coastal Promenade (Y = 1180cm, Z = 22cm)
+	for (int32 i = 0; i < 6; ++i)
+	{
+		const float StartX = 1500.0f + i * 2800.0f;
+		TArray<FVector> WalkPath;
+		WalkPath.Add(Origin + FVector(StartX, 1180.0f, 22.0f));
+		WalkPath.Add(Origin + FVector(StartX + 1800.0f, 1180.0f, 22.0f));
+
+		if (AIstanbulPedestrian* Ped = W->SpawnActor<AIstanbulPedestrian>(WalkPath[0], FRotator::ZeroRotator, SpawnParams))
+		{
+			Ped->Tags.Add(GeneratedActorTag);
+			Ped->InitializePedestrian(EPedestrianRole::SidewalkWalker, WalkPath, Seed + 201 + i * 17);
+			++SpawnedActorCount;
+		}
+	}
+
+	// 2. Pedestrians on Galata Bridge Sidewalks
+	for (int32 i = 0; i < 4; ++i)
+	{
+		const float StartY = -3800.0f - i * 2400.0f;
+		TArray<FVector> BridgePath;
+		BridgePath.Add(Origin + FVector(8800.0f - 880.0f, StartY, 282.0f));
+		BridgePath.Add(Origin + FVector(8800.0f - 880.0f, StartY - 1600.0f, 282.0f));
+
+		if (AIstanbulPedestrian* Ped = W->SpawnActor<AIstanbulPedestrian>(BridgePath[0], FRotator::ZeroRotator, SpawnParams))
+		{
+			Ped->Tags.Add(GeneratedActorTag);
+			Ped->InitializePedestrian(EPedestrianRole::SidewalkWalker, BridgePath, Seed + 301 + i * 29);
+			++SpawnedActorCount;
+		}
+	}
+
+	// 3. Crosswalk Pedestrians (periodically crossing the street at Yaya Geçitleri)
+	// Crosswalk 1: Eminönü İskele Durağı (X = 3500cm, crossing between Y = -1100cm and +1100cm)
+	{
+		TArray<FVector> CrossPath;
+		CrossPath.Add(Origin + FVector(3500.0f, -1120.0f, 22.0f));
+		CrossPath.Add(Origin + FVector(3500.0f,  1120.0f, 22.0f));
+		if (AIstanbulPedestrian* CrossPed = W->SpawnActor<AIstanbulPedestrian>(CrossPath[0], FRotator::ZeroRotator, SpawnParams))
+		{
+			CrossPed->Tags.Add(GeneratedActorTag);
+			CrossPed->InitializePedestrian(EPedestrianRole::CrosswalkPedestrian, CrossPath, Seed + 411);
+			++SpawnedActorCount;
+		}
+	}
+
+	// Crosswalk 2: Sirkeci Tramway Junction (X = 8800cm, crossing between Y = -1100cm and +1100cm)
+	{
+		TArray<FVector> CrossPath2;
+		CrossPath2.Add(Origin + FVector(8800.0f,  1120.0f, 22.0f));
+		CrossPath2.Add(Origin + FVector(8800.0f, -1120.0f, 22.0f));
+		if (AIstanbulPedestrian* CrossPed = W->SpawnActor<AIstanbulPedestrian>(CrossPath2[0], FRotator::ZeroRotator, SpawnParams))
+		{
+			CrossPed->Tags.Add(GeneratedActorTag);
+			CrossPed->InitializePedestrian(EPedestrianRole::CrosswalkPedestrian, CrossPath2, Seed + 422);
+			++SpawnedActorCount;
+		}
+	}
+
+	// 4. Visual Hailing Passenger at the initial pickup spot (+30m at Eminönü İskele)
+	const FVector HailingPos = Origin + FVector(3000.0f, 1020.0f, 22.0f);
+	if (AIstanbulPedestrian* HailingPed = W->SpawnActor<AIstanbulPedestrian>(HailingPos, FRotator(0.0f, -90.0f, 0.0f), SpawnParams))
+	{
+		HailingPed->Tags.Add(GeneratedActorTag);
+		HailingPed->SetAsHailingPassenger(HailingPos, FGuid::NewGuid());
+		++SpawnedActorCount;
+	}
+}
+
+void ATestSceneBuilder::SpawnBosphorusMovingFerries(const FVector& Origin)
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// Ferry 1: ŞH-BARIŞ MANÇO cruising between Eminönü and Üsküdar
+	TArray<FVector> Ferry1Path = {
+		Origin + FVector( 6000.0f, -6000.0f, 0.0f),
+		Origin + FVector(22000.0f, -14000.0f, 0.0f),
+		Origin + FVector(38000.0f, -12000.0f, 0.0f),
+		Origin + FVector(22000.0f, -5000.0f, 0.0f)
+	};
+	if (AIstanbulFerry* Ferry1 = W->SpawnActor<AIstanbulFerry>(Ferry1Path[0], FRotator::ZeroRotator, SpawnParams))
+	{
+		Ferry1->Tags.Add(GeneratedActorTag);
+		Ferry1->InitializeRoute(TEXT("ŞH-BARIŞ MANÇO"), Ferry1Path, 11.5f);
+		++SpawnedActorCount;
+	}
+
+	// Ferry 2: ŞH-AHMET HAMDİ TANPINAR cruising along the Bosphorus Strait
+	TArray<FVector> Ferry2Path = {
+		Origin + FVector(48000.0f, -16000.0f, 0.0f),
+		Origin + FVector(32000.0f, -7000.0f, 0.0f),
+		Origin + FVector(14000.0f, -9000.0f, 0.0f),
+		Origin + FVector(28000.0f, -18000.0f, 0.0f)
+	};
+	if (AIstanbulFerry* Ferry2 = W->SpawnActor<AIstanbulFerry>(Ferry2Path[0], FRotator::ZeroRotator, SpawnParams))
+	{
+		Ferry2->Tags.Add(GeneratedActorTag);
+		Ferry2->InitializeRoute(TEXT("ŞH-AHMET HAMDİ TANPINAR"), Ferry2Path, 13.0f);
+		++SpawnedActorCount;
+	}
 }

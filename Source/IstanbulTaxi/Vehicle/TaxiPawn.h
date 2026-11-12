@@ -32,6 +32,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaxiScrape, AActor*, ScrapedActo
  * per-wheel surface response, chase + interior cameras, solid 3D collision sweep,
  * 4-slot contoured PBR body mesh, 5-spoke rotating alloy wheels, and real headlight cones.
  */
+UENUM(BlueprintType)
+enum class ETaxiCameraViewMode : uint8
+{
+	ThirdPersonChase = 0 UMETA(DisplayName = "Dış Kamera (Chase)"),
+	HoodBumper       = 1 UMETA(DisplayName = "Kaput / Tampon Kamera"),
+	InteriorDriver   = 2 UMETA(DisplayName = "İç / Kokpit Kamera")
+};
+
 UCLASS()
 class ISTANBULTAXI_API ATaxiPawn : public AWheeledVehiclePawn
 {
@@ -82,7 +90,10 @@ public:
 	FOnTaxiScrape OnScrape;
 
 	UFUNCTION(BlueprintPure, Category = "Taxi")
-	bool IsInteriorCamera() const { return bInteriorCamera; }
+	bool IsInteriorCamera() const { return CameraMode == ETaxiCameraViewMode::InteriorDriver; }
+
+	UFUNCTION(BlueprintPure, Category = "Taxi")
+	int32 GetCameraViewModeIndex() const { return static_cast<int32>(CameraMode); }
 
 	/** 0 = driver window closed, 1 = fully rolled down. Drives interior/exterior audio occlusion filter. */
 	UFUNCTION(BlueprintPure, Category = "Taxi|Audio")
@@ -137,6 +148,22 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UCameraComponent> InteriorCamera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UCameraComponent> HoodCamera;
+
+	// ---- Cockpit / Interior Dashboard Components ----
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Dashboard")
+	TObjectPtr<UProceduralMeshComponent> InteriorDashboardProcMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Dashboard")
+	TObjectPtr<UProceduralMeshComponent> SteeringWheelProcMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Dashboard")
+	TObjectPtr<UProceduralMeshComponent> LeftWiperProcMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Dashboard")
+	TObjectPtr<UProceduralMeshComponent> RightWiperProcMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTaxiSurfaceComponent> SurfaceComponent;
@@ -282,6 +309,7 @@ private:
 	void LegacyHandbrakePressed();
 	void LegacyHandbrakeReleased();
 	void LegacyToggleCamera();
+	void LegacyToggleWeather();
 	void LegacyReset();
 	void LegacyTaximeterToggle();
 	void LegacyTaximeterPause();
@@ -323,6 +351,8 @@ private:
 	float CollisionWarningCooldownSec = 0.0f;
 
 	bool bInteriorCamera = false;
+	ETaxiCameraViewMode CameraMode = ETaxiCameraViewMode::ThirdPersonChase;
+	float WiperCycleTime = 0.0f;
 	float WindowOpenRatio = 0.0f;
 	float TargetWindowOpenRatio = 0.0f;
 	FVector InteriorCameraBaseLocation = FVector::ZeroVector;

@@ -2,6 +2,7 @@
 #include "IstanbulTaxi.h"
 #include "Core/IstanbulTaxiSettings.h"
 #include "Core/IstanbulTaxiGameplayTags.h"
+#include "Environment/WeatherSubsystem.h"
 #include "ChaosWheeledVehicleMovementComponent.h"
 #include "ChaosVehicleWheel.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
@@ -75,6 +76,15 @@ void UTaxiSurfaceComponent::CacheWheels()
 void UTaxiSurfaceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Sync wetness from WeatherSubsystem if available
+	if (UWorld* W = GetWorld())
+	{
+		if (UWeatherSubsystem* WeatherSub = W->GetSubsystem<UWeatherSubsystem>())
+		{
+			Wetness = WeatherSub->GetWetness();
+		}
+	}
 
 	if (!Movement || !ActiveResponses || WheelStates.Num() == 0 || Movement->Wheels.Num() < WheelStates.Num())
 	{

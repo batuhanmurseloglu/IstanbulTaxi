@@ -5,6 +5,7 @@
 #include "Taximeter/TaximeterComponent.h"
 #include "Taximeter/TaximeterTariffDataAsset.h"
 #include "Environment/TimeOfDaySubsystem.h"
+#include "Environment/WeatherSubsystem.h"
 #include "Audio/AudioAmbienceSubsystem.h"
 #include "Audio/DistrictAmbienceDataAsset.h"
 #include "Audio/PrayerTimeCalculator.h"
@@ -169,9 +170,16 @@ void AIstanbulTaxiHUD::DrawHUD()
 	DrawText(FString::Printf(TEXT("Zemin: %s (Sarsıntı %.0f%%)   |   Martı: %.0f%%   |   Cam LPF: %.0f Hz"),
 		*SurfName, VibPct, Gulls * 100.0f, LPFHz),
 		FLinearColor(0.76f, 0.88f, 0.98f), 36.0f, 54.0f, Font, 0.92f);
-	DrawText(PrayerLine, FLinearColor(0.68f, 0.74f, 0.82f), 36.0f, 82.0f, Font, 0.86f);
-	DrawText(TEXT("İpucu: X=+35m'den sağa dönüp Arnavut kaldırımlı Sultanahmet yokuşuna çıkabilirsiniz!"),
-		FLinearColor(0.55f, 0.88f, 0.62f), 36.0f, 110.0f, Font, 0.84f);
+
+	FString WeatherStr = TEXT("Açık / Güneşli");
+	if (const UWeatherSubsystem* WeatherSub = GetWorld()->GetSubsystem<UWeatherSubsystem>())
+	{
+		WeatherStr = WeatherSub->GetWeatherDisplayName();
+	}
+	DrawText(FString::Printf(TEXT("Hava: %s [B: Değiştir]   |   Kamera: %s [C: Değiştir]"),
+		*WeatherStr, (Taxi && Taxi->IsInteriorCamera()) ? TEXT("İç / Kokpit") : (Taxi && Taxi->GetCameraViewModeIndex() == 1) ? TEXT("Kaput/Tampon") : TEXT("Dış/Takip")),
+		FLinearColor(0.85f, 0.92f, 0.65f), 36.0f, 82.0f, Font, 0.86f);
+	DrawText(PrayerLine, FLinearColor(0.68f, 0.74f, 0.82f), 36.0f, 108.0f, Font, 0.82f);
 
 	// =========================================================================
 	// 2. BOTTOM-RIGHT: AUTHENTIC TURKISH DIGITAL TAXIMETER UNIT & INSTRUMENT CLUSTER
