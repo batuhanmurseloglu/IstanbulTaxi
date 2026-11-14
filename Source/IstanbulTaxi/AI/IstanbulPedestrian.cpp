@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Vehicle/TaxiPawn.h"
 #include "Missions/PassengerInteractionComponent.h"
+#include "Missions/PassengerMissionSubsystem.h"
 #include "Core/IstanbulTaxiHUD.h"
 #include "IstanbulTaxi.h"
 
@@ -43,6 +44,10 @@ AIstanbulPedestrian::AIstanbulPedestrian()
 	HailingMarkerMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("HailingMarkerMesh"));
 	HailingMarkerMesh->SetupAttachment(CapsuleComp);
 	HailingMarkerMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	RolePropMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("RolePropMesh"));
+	RolePropMesh->SetupAttachment(CapsuleComp);
+	RolePropMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void AIstanbulPedestrian::BeginPlay()
@@ -157,6 +162,73 @@ void AIstanbulPedestrian::BuildArticulatedBody(int32 Seed)
 	FIstanbulMeshUtils::AppendBeveledBox(RightLegSec, FTransform(FVector(3.0f, 0.0f, -46.0f)), FVector(10.0f, 6.0f, 4.0f), 1.5f, ShoeColor);
 	RightLegMesh->SetRelativeLocation(FVector(0.0f, 10.0f, -10.0f));
 	RightLegSec.CommitToComponent(RightLegMesh, 0, false, CommonMat);
+
+	// 6. Role-Specific Props (Fishing Rod for BridgeAngler, Red/White Simitçi Cart for StreetVendor)
+	if (RolePropMesh)
+	{
+		RolePropMesh->ClearAllMeshSections();
+		if (Role == EPedestrianRole::BridgeAngler)
+		{
+			FIstanbulMeshSectionData RodSec;
+			const FLinearColor RodCol(0.14f, 0.16f, 0.20f);
+			const FLinearColor LineCol(0.85f, 0.88f, 0.92f);
+			// Angled fishing rod held from right hand extending over the Galata Bridge railing
+			FIstanbulMeshUtils::AppendCylinder(RodSec,
+				FTransform(FRotator(-48.0f, 0.0f, 0.0f), FVector(95.0f, 22.0f, 105.0f)),
+				2.2f, 130.0f, 6, RodCol);
+			// Vertical fishing line hanging down toward Golden Horn water
+			FIstanbulMeshUtils::AppendCylinder(RodSec,
+				FTransform(FRotator::ZeroRotator, FVector(185.0f, 22.0f, -10.0f)),
+				0.7f, 185.0f, 4, LineCol);
+			RodSec.CommitToComponent(RolePropMesh, 0, false, CommonMat);
+			RightArmMesh->SetRelativeRotation(FRotator(55.0f, 0.0f, 0.0f));
+		}
+		else if (Role == EPedestrianRole::StreetVendor)
+		{
+			FIstanbulMeshSectionData CartSec;
+			const FLinearColor CartRed(0.82f, 0.10f, 0.10f);
+			const FLinearColor TrimWhite(0.95f, 0.95f, 0.96f);
+			const FLinearColor GlassTint(0.70f, 0.86f, 0.95f);
+			const FLinearColor SimitGold(0.90f, 0.62f, 0.16f);
+			const FLinearColor DarkWheel(0.08f, 0.08f, 0.09f);
+			const FVector CartCenter(72.0f, 0.0f, -20.0f);
+
+			// Red lower wooden/metal cart body & white counter rim
+			FIstanbulMeshUtils::AppendBeveledBox(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 0.0f)), FVector(52.0f, 34.0f, 32.0f), 3.0f, CartRed);
+			FIstanbulMeshUtils::AppendBeveledBox(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 35.0f)), FVector(56.0f, 37.0f, 4.0f), 1.5f, TrimWhite);
+			// Glass display vitrine cabin
+			FIstanbulMeshUtils::AppendBeveledBox(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 65.0f)), FVector(46.0f, 30.0f, 26.0f), 2.0f, GlassTint);
+			// White corner posts & red-and-white top cornice
+			FIstanbulMeshUtils::AppendBeveledBox(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 95.0f)), FVector(54.0f, 36.0f, 6.0f), 2.0f, CartRed);
+			// Stacked golden Simit trays visible inside the cart
+			for (int32 s = 0; s < 4; ++s)
+			{
+				const float SX = -24.0f + s * 16.0f;
+				FIstanbulMeshUtils::AppendCylinder(CartSec,
+					FTransform(FRotator(0.0f, 0.0f, 90.0f), CartCenter + FVector(SX, 0.0f, 60.0f)),
+					10.0f, 18.0f, 10, SimitGold);
+			}
+			// Two spoked side wheels + umbrella mast & striped canopy
+			FIstanbulMeshUtils::AppendCylinder(CartSec,
+				FTransform(FRotator(0.0f, 0.0f, 90.0f), CartCenter + FVector(0.0f, -38.0f, -44.0f)),
+				24.0f, 4.0f, 12, DarkWheel);
+			FIstanbulMeshUtils::AppendCylinder(CartSec,
+				FTransform(FRotator(0.0f, 0.0f, 90.0f), CartCenter + FVector(0.0f, 38.0f, -44.0f)),
+				24.0f, 4.0f, 12, DarkWheel);
+			FIstanbulMeshUtils::AppendCylinder(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 130.0f)),
+				3.0f, 42.0f, 8, TrimWhite);
+			FIstanbulMeshUtils::AppendCone(CartSec,
+				FTransform(CartCenter + FVector(0.0f, 0.0f, 178.0f)),
+				88.0f, 6.0f, 22.0f, 8, CartRed);
+			RolePropMesh->SetMaterial(0, CommonMat);
+			CartSec.CommitToComponent(RolePropMesh, 0, false, CommonMat);
+		}
+	}
 }
 
 void AIstanbulPedestrian::Tick(float DeltaTime)
@@ -165,7 +237,47 @@ void AIstanbulPedestrian::Tick(float DeltaTime)
 
 	if (bHasBoardedTaxi) return;
 
-	CheckVehicleDodge(DeltaTime);
+	// Distance-Based Tick Optimization so 150+ city-wide NPCs stay lightweight
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+	const float DistToPlayer2D = PlayerPawn ? FVector::Dist2D(GetActorLocation(), PlayerPawn->GetActorLocation()) : 0.0f;
+	if (PlayerPawn)
+	{
+		if (DistToPlayer2D > 24000.0f)
+		{
+			SetActorTickInterval(0.40f);
+			return;
+		}
+		else if (DistToPlayer2D > 9500.0f)
+		{
+			SetActorTickInterval(0.08f);
+		}
+		else
+		{
+			SetActorTickInterval(0.0f);
+		}
+	}
+
+	// Stationary ambient roles: Galata Bridge anglers, Simit vendors, and seaside onlookers
+	if (Role == EPedestrianRole::BridgeAngler || Role == EPedestrianRole::StreetVendor || Role == EPedestrianRole::PromenadeOnlooker)
+	{
+		HailingArmWaveTime += DeltaTime * 1.8f;
+		if (Role == EPedestrianRole::BridgeAngler)
+		{
+			// Subtle gentle fishing-rod bobbing
+			RightArmMesh->SetRelativeRotation(FRotator(55.0f + FMath::Sin(HailingArmWaveTime) * 4.0f, 0.0f, 0.0f));
+		}
+		else
+		{
+			LeftArmMesh->SetRelativeRotation(FRotator(FMath::Sin(HailingArmWaveTime) * 5.0f, 0.0f, 0.0f));
+			RightArmMesh->SetRelativeRotation(FRotator(-FMath::Sin(HailingArmWaveTime * 0.8f) * 5.0f, 0.0f, 0.0f));
+		}
+		return;
+	}
+
+	if (DistToPlayer2D <= 1800.0f)
+	{
+		CheckVehicleDodge(DeltaTime);
+	}
 
 	// ---- Hailing Passenger Behavior ----
 	if (Role == EPedestrianRole::HailingPassenger)
@@ -180,13 +292,12 @@ void AIstanbulPedestrian::Tick(float DeltaTime)
 		HailingMarkerMesh->AddRelativeRotation(FRotator(0.0f, DeltaTime * 90.0f, 0.0f));
 
 		// Detect nearby player taxi to board
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 		if (ATaxiPawn* Taxi = Cast<ATaxiPawn>(PlayerPawn))
 		{
 			const float DistToTaxi = FVector::Dist2D(GetActorLocation(), Taxi->GetActorLocation());
 			const float TaxiSpeed = FMath::Abs(Taxi->GetSpeedKmh());
 
-			if (!bIsWalkingToTaxi && DistToTaxi <= 650.0f && TaxiSpeed <= 8.0f)
+			if (!bIsWalkingToTaxi && DistToTaxi <= 750.0f && TaxiSpeed <= 10.0f)
 			{
 				bIsWalkingToTaxi = true;
 				TargetTaxi = Taxi;
@@ -203,16 +314,46 @@ void AIstanbulPedestrian::Tick(float DeltaTime)
 				SetActorLocation(GetActorLocation() + MoveDir * StepDist);
 				UpdateWalkAnimation(DeltaTime, 1.0f);
 
-				if (FVector::Dist2D(GetActorLocation(), TargetDoor) <= 55.0f)
+				if (FVector::Dist2D(GetActorLocation(), TargetDoor) <= 65.0f)
 				{
 					// Board into taxi cabin!
 					bHasBoardedTaxi = true;
 					SetActorHiddenInGame(true);
 					SetActorEnableCollision(false);
 
+					if (UPassengerMissionSubsystem* Missions = GetWorld()->GetSubsystem<UPassengerMissionSubsystem>())
+					{
+						if (Missions->GetPhase() == ETaxiRidePhase::None)
+						{
+							FTaxiRideRequest Req;
+							Req.RideId = AssociatedRideId.IsValid() ? AssociatedRideId : FGuid::NewGuid();
+							Req.PickupLocation = TargetTaxi->GetActorLocation();
+							const FVector CurLoc = GetActorLocation();
+							if (CurLoc.Y < -20000.0f)
+							{
+								Req.PickupName = FText::FromString(TEXT("Karaköy / Galata Tepesi"));
+								Req.DropoffName = FText::FromString(TEXT("Sultanahmet Dikilitaş Meydanı"));
+								Req.DropoffLocation = FVector(15200.0f, 3800.0f, 15.0f);
+							}
+							else if (CurLoc.X > 42000.0f)
+							{
+								Req.PickupName = FText::FromString(TEXT("Beşiktaş / Kabataş Sahili"));
+								Req.DropoffName = FText::FromString(TEXT("Eminönü Vapur İskelesi"));
+								Req.DropoffLocation = FVector(3000.0f, 650.0f, 15.0f);
+							}
+							else
+							{
+								Req.PickupName = FText::FromString(TEXT("Eminönü / Sirkeci Kordonu"));
+								Req.DropoffName = FText::FromString(TEXT("Beşiktaş Boğaz Sahil Yolu"));
+								Req.DropoffLocation = FVector(76000.0f, 650.0f, 15.0f);
+							}
+							Missions->StartRide(Req);
+						}
+					}
+
 					if (AIstanbulTaxiHUD* HUD = Cast<AIstanbulTaxiHUD>(UGameplayStatics::GetPlayerController(GetWorld(), 0)->GetHUD()))
 					{
-						HUD->PushToast(TEXT("Müşteri arka koltuğa bindi! \"İyi günler kaptan, gidelim!\""), FLinearColor(0.2f, 0.95f, 0.3f), 5.0f);
+						HUD->PushToast(TEXT("Müşteri arka koltuğa bindi! \"İyi günler kaptan, taksimetreyi açalım lütfen!\""), FLinearColor(0.2f, 0.95f, 0.3f), 5.0f);
 					}
 				}
 			}
@@ -242,7 +383,11 @@ void AIstanbulPedestrian::Tick(float DeltaTime)
 			const float ActualSpeed = bIsDodging ? (WalkSpeedCms * 2.2f) : WalkSpeedCms;
 			SetActorRotation(FMath::RInterpTo(GetActorRotation(), MoveDir.Rotation(), DeltaTime, 8.0f));
 			SetActorLocation(GetActorLocation() + MoveDir * (ActualSpeed * DeltaTime));
-			UpdateWalkAnimation(DeltaTime, bIsDodging ? 2.2f : 1.0f);
+			// Skip expensive bone limb sine-wave math beyond 95m
+			if (DistToPlayer2D <= 9500.0f)
+			{
+				UpdateWalkAnimation(DeltaTime, bIsDodging ? 2.2f : 1.0f);
+			}
 		}
 	}
 }

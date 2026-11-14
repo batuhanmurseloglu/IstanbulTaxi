@@ -10,8 +10,12 @@
 #include "Audio/DistrictAmbienceDataAsset.h"
 #include "Audio/PrayerTimeCalculator.h"
 #include "Traffic/IstanbulTrafficManager.h"
+#include "Core/TestSceneBuilder.h"
+#include "AI/IstanbulPedestrian.h"
+#include "Environment/IstanbulFerry.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 
 AIstanbulTaxiHUD::AIstanbulTaxiHUD()
@@ -410,16 +414,19 @@ void AIstanbulTaxiHUD::DrawHUD()
 	}
 
 	// =========================================================================
-	// 5. BOTTOM-LEFT: COMPACT CONTROLS BAR (60% Keyboard Friendly)
+	// 5. 2D MINIMAP / RADAR & DISTRICT COMPASS + COMPACT CONTROLS BAR
 	// =========================================================================
+	DrawMinimapAndCompass(Taxi, Font, ScreenW, ScreenH);
+
+	const float HelpX = 278.0f;
 	const float HelpY = ScreenH - 96.0f;
-	DrawBezelBox(20.0f, HelpY, 595.0f, 72.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.82f), FLinearColor(0.35f, 0.40f, 0.46f, 0.7f));
+	DrawBezelBox(HelpX, HelpY, 595.0f, 72.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.82f), FLinearColor(0.35f, 0.40f, 0.46f, 0.7f));
 	DrawText(TEXT("[WASD] Sürüş  |  [Space] El Freni (Yokuş Kalkış)  |  [H] Korna  |  [C] Kamera  |  [R] Düzelt"),
-		FLinearColor(0.92f, 0.94f, 0.98f), 32.0f, HelpY + 8.0f, Font, 0.85f);
+		FLinearColor(0.92f, 0.94f, 0.98f), HelpX + 12.0f, HelpY + 8.0f, Font, 0.85f);
 	DrawText(TEXT("[T] Taksimetre Aç/Kapat  |  [P] Beklet  |  [Y] Tarife  |  [1/2/3] Yolcu Diyalog Seçimi"),
-		FLinearColor(0.98f, 0.82f, 0.22f), 32.0f, HelpY + 28.0f, Font, 0.85f);
+		FLinearColor(0.98f, 0.82f, 0.22f), HelpX + 12.0f, HelpY + 28.0f, Font, 0.85f);
 	DrawText(TEXT("[E] Yolcu Görevi  |  [V] Cam Aç/Kapat  |  [N] Ezan Oku  |  [M] Saati +1.5s İlerlet"),
-		FLinearColor(0.75f, 0.88f, 0.98f), 32.0f, HelpY + 48.0f, Font, 0.85f);
+		FLinearColor(0.75f, 0.88f, 0.98f), HelpX + 12.0f, HelpY + 48.0f, Font, 0.85f);
 
 	// =========================================================================
 	// 6. TOAST NOTIFICATIONS
@@ -437,4 +444,156 @@ void AIstanbulTaxiHUD::DrawHUD()
 		DrawText(Toasts[i].Text, Toasts[i].Color, 32.0f, ToastY + 5.0f, Font, 0.90f);
 		ToastY += 35.0f;
 	}
+}
+
+void AIstanbulTaxiHUD::DrawMinimapAndCompass(ATaxiPawn* Taxi, UFont* Font, float ScreenW, float ScreenH)
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+
+	const FVector PlayerLoc = Taxi ? Taxi->GetActorLocation() : FVector(5200.0f, -420.0f, 35.0f);
+	const float PlayerYawDeg = Taxi ? Taxi->GetActorRotation().Yaw : -38.0f;
+	const float Now = W->GetTimeSeconds();
+
+	// 1) Top-Center District Compass Strip showing heading + direction to Seafront & Landmarks
+	const float CompW = 360.0f;
+	const float CompX = (ScreenW - CompW) * 0.5f;
+	const float CompY = 18.0f;
+	DrawBezelBox(CompX, CompY, CompW, 34.0f, FLinearColor(0.012f, 0.016f, 0.024f, 0.86f), FLinearColor(0.30f, 0.72f, 0.95f, 0.85f), 1.5f);
+
+	const float YawNorm = FRotator::ClampAxis(PlayerYawDeg);
+	static const TCHAR* CompassDirs[8] = { TEXT("D (Boğaz)"), TEXT("GD"), TEXT("G (Sultanahmet)"), TEXT("GB"), TEXT("B (Yarımada)"), TEXT("KB"), TEXT("K (Deniz / Galata)"), TEXT("KD") };
+	const int32 DirIdx = FMath::RoundToInt(YawNorm / 45.0f) % 8;
+	const FString NearestArea =
+		(PlayerLoc.Y < -35000.0f) ? TEXT("Karaköy / Galata") :
+		(PlayerLoc.Y < -2000.0f)  ? TEXT("Galata Köprüsü") :
+		(PlayerLoc.X > 65000.0f)  ? TEXT("Beşiktaş / Boğaz Köprüsü") :
+		(PlayerLoc.Y > 3000.0f)   ? TEXT("Sultanahmet / Cihangir") :
+		TEXT("Eminönü Sahil Kordonu");
+	DrawText(FString::Printf(TEXT("PUSULA: %s (%.0f°)  |  %s"), CompassDirs[DirIdx], YawNorm, *NearestArea),
+		FLinearColor(0.86f, 0.94f, 1.0f), CompX + 14.0f, CompY + 8.0f, Font, 0.86f);
+
+	// 2) Bottom-Left 2D Minimap / Radar Panel (1.2 km coverage radius -> 2.4 km width around player)
+	const float MapW = 244.0f;
+	const float MapH = 244.0f;
+	const float MapX = 20.0f;
+	const float MapY = ScreenH - MapH - 24.0f;
+	const float BodyY = MapY + 24.0f;
+	const float BodyH = MapH - 24.0f;
+	const float CenterX = MapX + MapW * 0.5f;
+	const float CenterY = BodyY + BodyH * 0.5f;
+
+	// North-up top-down radar covering +/- 55,000 cm (1.1 km total box width)
+	const float RadarHalfRangeCm = 55000.0f;
+	const float ScalePxPerCm = (MapW * 0.5f) / RadarHalfRangeCm;
+
+	auto WorldToMap = [&](const FVector2D& WorldXY) -> FVector2D
+	{
+		// +X is East (Right on map), +Y is Inland South/Up on screen (-ScreenY in UE UI canvas? Wait: in this map Y<0 is sea toward Golden Horn/Bosphorus!)
+		// Map +X right, -Y UP or DOWN: let's put Golden Horn / Bosphorus sea (-Y) in the UPPER/NORTH half or LOWER half consistently:
+		// Map +Y (World +Y) downward -> World -Y (Sea, Galata Bridge, Kız Kulesi) is UP on the radar so facing sea looks toward top!
+		const float DX = (WorldXY.X - PlayerLoc.X) * ScalePxPerCm;
+		const float DY = (WorldXY.Y - PlayerLoc.Y) * ScalePxPerCm;
+		return FVector2D(CenterX + DX, CenterY + DY);
+	};
+
+	DrawBezelBox(MapX, MapY, MapW, MapH, FLinearColor(0.05f, 0.06f, 0.07f, 0.92f), FLinearColor(0.95f, 0.70f, 0.04f, 0.90f), 1.8f);
+	DrawRect(FLinearColor(0.95f, 0.70f, 0.04f, 0.95f), MapX + 1.0f, MapY + 1.0f, MapW - 2.0f, 22.0f);
+	DrawText(TEXT("İSTANBUL HARİTA & DENİZ RADARI"), FLinearColor(0.02f, 0.02f, 0.02f), MapX + 8.0f, MapY + 4.0f, Font, 0.78f);
+
+	// Draw Blue Bosphorus & Golden Horn Water Zones clipped inside radar bounds
+	auto DrawClippedWorldRect = [&](float MinWX, float MaxWX, float MinWY, float MaxWY, const FLinearColor& Col)
+	{
+		const FVector2D P0 = WorldToMap(FVector2D(MinWX, MinWY));
+		const FVector2D P1 = WorldToMap(FVector2D(MaxWX, MaxWY));
+		const float RX0 = FMath::Clamp(FMath::Min(P0.X, P1.X), MapX + 2.0f, MapX + MapW - 2.0f);
+		const float RY0 = FMath::Clamp(FMath::Min(P0.Y, P1.Y), BodyY + 2.0f, MapY + MapH - 2.0f);
+		const float RX1 = FMath::Clamp(FMath::Max(P0.X, P1.X), MapX + 2.0f, MapX + MapW - 2.0f);
+		const float RY1 = FMath::Clamp(FMath::Max(P0.Y, P1.Y), BodyY + 2.0f, MapY + MapH - 2.0f);
+		if (RX1 > RX0 && RY1 > RY0)
+		{
+			DrawRect(Col, RX0, RY0, RX1 - RX0, RY1 - RY0);
+		}
+	};
+
+	// Golden Horn sea between Eminönü shoreline (Y=-1240) and Karaköy shore (Y=-40800) + Eastern Bosphorus channel
+	const FLinearColor SeaRadarCol(0.03f, 0.30f, 0.52f, 0.88f);
+	DrawClippedWorldRect(-150000.0f, 250000.0f, -40800.0f, -1240.0f, SeaRadarCol);
+	DrawClippedWorldRect(38000.0f, 250000.0f, -150000.0f, -1240.0f, SeaRadarCol);
+
+	// Draw Procedural Road Segments clipped to radar box
+	if (ATestSceneBuilder* SceneBuilder = Cast<ATestSceneBuilder>(UGameplayStatics::GetActorOfClass(W, ATestSceneBuilder::StaticClass())))
+	{
+		for (const FIstanbulRoadSegmentSpec& Seg : SceneBuilder->GetRoadSegments())
+		{
+			const FVector2D A = WorldToMap(FVector2D(Seg.Start.X, Seg.Start.Y));
+			const FVector2D B = WorldToMap(FVector2D(Seg.End.X, Seg.End.Y));
+			if ((A.X < MapX && B.X < MapX) || (A.X > MapX + MapW && B.X > MapX + MapW) ||
+				(A.Y < BodyY && B.Y < BodyY) || (A.Y > MapY + MapH && B.Y > MapY + MapH))
+			{
+				continue;
+			}
+			const FVector2D CA(FMath::Clamp(A.X, MapX + 3.0f, MapX + MapW - 3.0f), FMath::Clamp(A.Y, BodyY + 3.0f, MapY + MapH - 3.0f));
+			const FVector2D CB(FMath::Clamp(B.X, MapX + 3.0f, MapX + MapW - 3.0f), FMath::Clamp(B.Y, BodyY + 3.0f, MapY + MapH - 3.0f));
+
+			const bool bIsBridge = Seg.SegmentId.ToString().Contains(TEXT("Bridge"));
+			const bool bIsCobble = (Seg.SurfaceType == TEXT("Surface_Cobblestone"));
+			const FLinearColor RoadCol = bIsBridge ? FLinearColor(0.35f, 0.90f, 1.0f, 0.95f)
+				: bIsCobble ? FLinearColor(0.78f, 0.62f, 0.36f, 0.90f) : FLinearColor(0.82f, 0.84f, 0.88f, 0.90f);
+			DrawLine(CA.X, CA.Y, CB.X, CB.Y, RoadCol, FMath::Clamp(Seg.WidthM * 0.16f, 1.4f, 3.2f));
+		}
+	}
+
+	// Draw Moving Bosphorus Ferries (Cyan blips)
+	for (TActorIterator<AIstanbulFerry> It(W); It; ++It)
+	{
+		const FVector2D FP = WorldToMap(FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y));
+		if (FP.X >= MapX + 4.0f && FP.X <= MapX + MapW - 4.0f && FP.Y >= BodyY + 4.0f && FP.Y <= MapY + MapH - 4.0f)
+		{
+			DrawRect(FLinearColor(0.15f, 0.95f, 0.98f, 1.0f), FP.X - 3.0f, FP.Y - 3.0f, 6.0f, 6.0f);
+		}
+	}
+
+	// Draw Waving Hailing Passengers (Pulsing Yellow Dots)
+	const float Pulse = 0.65f + 0.35f * FMath::Sin(Now * 5.0f);
+	for (TActorIterator<AIstanbulPedestrian> It(W); It; ++It)
+	{
+		if (It->GetRole() == EPedestrianRole::HailingPassenger && !It->IsBoarded())
+		{
+			const FVector2D PP = WorldToMap(FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y));
+			if (PP.X >= MapX + 4.0f && PP.X <= MapX + MapW - 4.0f && PP.Y >= BodyY + 4.0f && PP.Y <= MapY + MapH - 4.0f)
+			{
+				DrawRect(FLinearColor(1.0f, 0.88f, 0.08f, Pulse), PP.X - 3.0f, PP.Y - 3.0f, 6.0f, 6.0f);
+			}
+		}
+	}
+
+	// Draw Landmark Labels when inside or near radar viewport
+	struct FLandmarkPin { const TCHAR* Name; FVector2D WorldXY; FLinearColor Col; };
+	static const FLandmarkPin Landmarks[5] = {
+		{ TEXT("GALATA KÖP."), FVector2D( 8800.0f, -18000.0f), FLinearColor(0.55f, 0.95f, 1.0f) },
+		{ TEXT("KIZ KULESİ"),  FVector2D(24000.0f, -14500.0f), FLinearColor(1.00f, 0.85f, 0.35f) },
+		{ TEXT("GALATA KUL."), FVector2D(22000.0f, -50900.0f), FLinearColor(0.95f, 0.80f, 0.55f) },
+		{ TEXT("SULTANAHMET"), FVector2D(15200.0f,   4200.0f), FLinearColor(0.95f, 0.88f, 0.70f) },
+		{ TEXT("BOĞAZ KÖP."),  FVector2D(108000.0f,  4000.0f), FLinearColor(1.00f, 0.45f, 0.35f) }
+	};
+	for (const FLandmarkPin& LM : Landmarks)
+	{
+		const FVector2D LP = WorldToMap(LM.WorldXY);
+		if (LP.X >= MapX + 4.0f && LP.X <= MapX + MapW - 58.0f && LP.Y >= BodyY + 4.0f && LP.Y <= MapY + MapH - 14.0f)
+		{
+			DrawText(LM.Name, LM.Col, LP.X, LP.Y, Font, 0.65f);
+		}
+	}
+
+	// Draw Player Taxi Position + Forward Heading Arrow at Center
+	const float Rad = FMath::DegreesToRadians(PlayerYawDeg);
+	const FVector2D Fwd2D(FMath::Cos(Rad), FMath::Sin(Rad));
+	const FVector2D Side2D(-Fwd2D.Y, Fwd2D.X);
+	const FVector2D Tip = FVector2D(CenterX, CenterY) + Fwd2D * 11.0f;
+	const FVector2D TailL = FVector2D(CenterX, CenterY) - Fwd2D * 6.0f + Side2D * 6.0f;
+	const FVector2D TailR = FVector2D(CenterX, CenterY) - Fwd2D * 6.0f - Side2D * 6.0f;
+	DrawLine(TailL.X, TailL.Y, Tip.X, Tip.Y, FLinearColor(1.0f, 0.86f, 0.08f), 2.5f);
+	DrawLine(TailR.X, TailR.Y, Tip.X, Tip.Y, FLinearColor(1.0f, 0.86f, 0.08f), 2.5f);
+	DrawRect(FLinearColor(1.0f, 0.25f, 0.15f), CenterX - 2.5f, CenterY - 2.5f, 5.0f, 5.0f);
 }

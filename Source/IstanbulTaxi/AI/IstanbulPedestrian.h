@@ -13,15 +13,19 @@ class UMaterialInstanceDynamic;
 UENUM(BlueprintType)
 enum class EPedestrianRole : uint8
 {
-	SidewalkWalker     UMETA(DisplayName = "Kaldırım Yayası"),
+	SidewalkWalker      UMETA(DisplayName = "Kaldırım Yayası"),
 	CrosswalkPedestrian UMETA(DisplayName = "Yaya Geçidi Yayası"),
-	HailingPassenger   UMETA(DisplayName = "El Sallayan Müşteri")
+	HailingPassenger    UMETA(DisplayName = "El Sallayan Müşteri"),
+	BridgeAngler        UMETA(DisplayName = "Galata Köprüsü Balıkçısı"),
+	StreetVendor        UMETA(DisplayName = "Simitçi / Sokak Satıcısı"),
+	PromenadeOnlooker   UMETA(DisplayName = "Sahil Seyircisi / Durak Yolcusu")
 };
 
 /**
  * Lightweight procedural 3D articulated Istanbul pedestrian actor.
- * Articulated head, torso, swinging arms and legs, varied Turkish clothing palettes,
- * crosswalk street crossing with vehicle dodging & Turkish shouting, and visual passenger hailing.
+ * Supports distance-based tick throttling, articulated walk cycle, crosswalk dodging,
+ * Galata Bridge anglers with fishing rods, red-and-white Simit street carts, seaside onlookers,
+ * and multi-district waving passengers who walk to and board the player taxi.
  */
 UCLASS()
 class ISTANBULTAXI_API AIstanbulPedestrian : public AActor
@@ -61,6 +65,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UProceduralMeshComponent> HailingMarkerMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UProceduralMeshComponent> RolePropMesh;
 
 private:
 	EPedestrianRole Role = EPedestrianRole::SidewalkWalker;

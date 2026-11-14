@@ -10,15 +10,15 @@ class UHierarchicalInstancedStaticMeshComponent;
 class UBoxComponent;
 class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
+class UPointLightComponent;
 
 /**
  * Procedural Bosphorus Strait Water Volume (Task 1.3):
- *  - 64x64 subdivided UProceduralMeshComponent water surface with layered sine-wave vertex displacement,
- *    shore-to-deep vertex color gradient (turquoise -> deep Bosphorus navy), and UV scrolling at a capped rate.
- *  - Coastal quay wall with stone coping edge, HISM bollards, and guard rail along the Eminönü-Karaköy shore.
- *  - Distant extruded silhouette layer at 2.2-3.2 km (Süleymaniye Mosque with 4 minarets, Galata Tower,
- *    and 15 Temmuz Bosphorus Suspension Bridge towers + parabolic cable curve) built from point arrays.
- *  - Physics-aware UBoxComponent kill/respawn trigger that teleports the player taxi back to its last dry checkpoint.
+ *  - Massive 5000m x 5000m sea coverage at Z = -120cm (64x64 animated nearshore grid + 5000m horizon ocean plane),
+ *    vivid deep-turquoise/navy PBR water material (Roughness=0.08, Specular=0.92), and white shoreline foam strip.
+ *  - Low-profile coastal quay curb and bollard promenade with clear unobstructed water views and Galata Bridge opening.
+ *  - Iconic Maiden's Tower (Kız Kulesi) islet out in the Bosphorus with a glowing lighthouse beacon.
+ *  - Distant extruded silhouette layer at 2.2-3.2 km + physics-aware water kill/respawn trigger.
  */
 UCLASS()
 class ISTANBULTAXI_API ABosphorusWaterVolume : public AActor
@@ -36,20 +36,20 @@ public:
 	int32 GridResolution = 64;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Water")
-	FVector2D WaterExtentCm = FVector2D(46000.0f, 24000.0f);
+	FVector2D WaterExtentCm = FVector2D(500000.0f, 500000.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Water")
-	float WaveAmplitudeCm = 18.0f;
+	float WaveAmplitudeCm = 22.0f;
 
 	/** Cap vertex update frequency (seconds between mesh section updates) for frame-time sanity. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Performance")
 	float WaveUpdateInterval = 0.066f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Color")
-	FLinearColor ShallowTurquoiseColor = FLinearColor(0.04f, 0.34f, 0.42f, 1.0f);
+	FLinearColor ShallowTurquoiseColor = FLinearColor(0.02f, 0.48f, 0.58f, 1.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Color")
-	FLinearColor DeepBosphorusNavyColor = FLinearColor(0.01f, 0.09f, 0.20f, 1.0f);
+	FLinearColor DeepBosphorusNavyColor = FLinearColor(0.01f, 0.14f, 0.32f, 1.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Bosphorus|Color")
 	FLinearColor DistantSilhouetteColor = FLinearColor(0.11f, 0.16f, 0.24f, 1.0f);
@@ -80,6 +80,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bosphorus")
 	TArray<TObjectPtr<UStaticMeshComponent>> FerryParts;
+
+	/** Glowing lighthouse lantern beacon atop Maiden's Tower (Kız Kulesi). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bosphorus")
+	TObjectPtr<UPointLightComponent> KizKulesiBeaconLight;
 
 private:
 	void BuildWaterGridMesh();

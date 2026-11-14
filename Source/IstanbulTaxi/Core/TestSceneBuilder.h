@@ -117,6 +117,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Istanbul|Validation")
 	bool ValidateNetwork();
 
+	const TArray<FIstanbulRoadSegmentSpec>& GetRoadSegments() const { return RoadSegments; }
+
 	int32 GetSpawnedActorCount() const { return SpawnedActorCount; }
 	int32 GetSpawnedHISMInstanceCount() const { return SpawnedHISMInstanceCount; }
 	int32 GetSpawnedProcMeshSectionCount() const { return SpawnedProcMeshSectionCount; }

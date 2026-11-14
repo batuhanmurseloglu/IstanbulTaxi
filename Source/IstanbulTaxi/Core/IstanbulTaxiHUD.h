@@ -6,6 +6,9 @@
 #include "Missions/PassengerMissionSubsystem.h"
 #include "IstanbulTaxiHUD.generated.h"
 
+class ATaxiPawn;
+class UFont;
+
 /**
  * Authentic Turkish Digital Taximeter (Mirror/Dashboard LCD Unit) & Istanbul Telemetry HUD.
  * Renders out-of-the-box in C++ Canvas with zero UMG .uasset dependencies:
@@ -38,6 +41,7 @@ private:
 	UFUNCTION() void HandleTrafficHorn(AActor* HonkingVehicle, FVector WorldLocation, FString ReasonText);
 
 	void DrawBezelBox(float X, float Y, float W, float H, const FLinearColor& Fill, const FLinearColor& Border, float BorderThickness = 1.5f);
+	void DrawMinimapAndCompass(ATaxiPawn* Taxi, UFont* Font, float ScreenW, float ScreenH);
 
 	struct FToastEntry
 	{
